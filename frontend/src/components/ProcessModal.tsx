@@ -1,5 +1,22 @@
 import { useState } from 'react';
-import type { Patient } from '../types/domain';
+import type { Patient, Stage } from '../types/domain';
+
+const NEXT_STAGE_BY_STAGE: Partial<Record<Stage, Stage>> = {
+  Dosimetría: 'Física Médica',
+  'Física Médica': 'Impresión',
+  Impresión: 'Enfermería',
+  Enfermería: 'Citación',
+  Citación: 'Finalizado',
+};
+
+const stageClassByStage: Record<Stage, string> = {
+  Dosimetría: 'dosimetria',
+  'Física Médica': 'fisica',
+  Impresión: 'impresion',
+  Enfermería: 'enfermeria',
+  Citación: 'citacion',
+  Finalizado: 'finalizado',
+};
 
 export function ProcessModal({
   patients,
@@ -38,8 +55,17 @@ export function ProcessModal({
         <div className="modal-summary">
           {patients.map((patient) => (
             <div key={patient.id} className="modal-summary-row">
-              <strong>{patient.full_name}</strong>
-              <span>{patient.rut} · {patient.current_stage}</span>
+              <div>
+                <strong>{patient.full_name}</strong>
+                <span>{patient.rut}</span>
+              </div>
+              <div className="stage-transition">
+                <span className={`stage-pill stage-pill-${stageClassByStage[patient.current_stage]}`}>{patient.current_stage}</span>
+                <span className="stage-transition-arrow">→</span>
+                <span className={`stage-pill stage-pill-${stageClassByStage[NEXT_STAGE_BY_STAGE[patient.current_stage] ?? 'Finalizado']}`}>
+                  {NEXT_STAGE_BY_STAGE[patient.current_stage] ?? 'Finalizado'}
+                </span>
+              </div>
             </div>
           ))}
         </div>

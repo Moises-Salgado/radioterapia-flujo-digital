@@ -119,6 +119,9 @@ export const workflowApi = {
   completed(): Promise<CompletedPatient[]> {
     return request('/workflow/completed');
   },
+  reopenPatient(id: number): Promise<Patient> {
+    return request(`/workflow/patients/${id}/reopen`, { method: 'POST' });
+  },
   processPatient(id: number, purpose: Purpose, notes?: string): Promise<{ patient: Patient; log: WorkflowLog }> {
     return request(`/workflow/patients/${id}/process`, {
       method: 'POST',

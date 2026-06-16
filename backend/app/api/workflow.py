@@ -2,10 +2,11 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session, joinedload
 
-from app.api.deps import get_current_user
+from app.api.deps import get_current_user, require_admin
 from app.api.patients import patient_to_read
 from app.core.database import get_db
 from app.models.entities import Patient, Stage, User, WorkflowLog
+from app.schemas.patients import PatientRead
 from app.schemas.workflow import (
     CompletedPatientItem,
     ProcessStageRequest,
@@ -85,3 +86,21 @@ def get_completed_patients(db: Session = Depends(get_db), _: User = Depends(get_
         finished_at = latest_log.fecha_hora if latest_log else patient.created_at
         results.append(CompletedPatientItem(patient=patient_to_read(db, patient), finished_at=finished_at))
     return results
+
+
+@router.post("/patients/{patient_id}/reopen", response_model=PatientRead)
+def reopen_completed_patient(
+    patient_id: int,
+    db: Session = Depends(get_db),
+    _: User = Depends(require_admin),
+):
+    patient = db.get(Patient, patient_id)
+    if not patient:
+        raise HTTPException(status_code=404, detail="Paciente no encontrado")
+    if patient.current_stage != Stage.FINALIZADO:
+        raise HTTPException(status_code=400, detail="Solo se pueden reabrir pacientes finalizados")
+
+    patient.current_stage = Stage.CITACION
+    db.commit()
+    db.refresh(patient)
+    return patient_to_read(db, patient)
