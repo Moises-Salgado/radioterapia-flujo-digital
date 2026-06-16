@@ -1,11 +1,15 @@
 import { useEffect, useState } from 'react';
 import { workflowApi } from '../api/client';
+import { useAuth } from '../context/AuthContext';
 import type { CompletedPatient } from '../types/domain';
 
 export function CompletedPage() {
+  const { user } = useAuth();
   const [completedPatients, setCompletedPatients] = useState<CompletedPatient[]>([]);
   const [message, setMessage] = useState('');
   const [loading, setLoading] = useState(false);
+  const [reopeningId, setReopeningId] = useState<number | null>(null);
+  const canReopen = user?.role === 'Admin';
 
   const loadCompleted = async () => {
     setLoading(true);
@@ -31,6 +35,23 @@ export function CompletedPage() {
       hour: '2-digit',
       minute: '2-digit',
     });
+
+  const handleReopen = async (item: CompletedPatient) => {
+    const confirmed = window.confirm(`¿Reabrir a ${item.patient.full_name}? Volverá a la etapa Citación.`);
+    if (!confirmed) return;
+
+    setReopeningId(item.patient.id);
+    setMessage('');
+    try {
+      await workflowApi.reopenPatient(item.patient.id);
+      setCompletedPatients((current) => current.filter((completed) => completed.patient.id !== item.patient.id));
+      setMessage(`${item.patient.full_name} fue reabierto y enviado a Citación.`);
+    } catch (err) {
+      setMessage(err instanceof Error ? err.message : 'No se pudo reabrir el paciente');
+    } finally {
+      setReopeningId(null);
+    }
+  };
 
   return (
     <div className="completed-page">
@@ -63,12 +84,13 @@ export function CompletedPage() {
                 <th>RUT</th>
                 <th>Teléfono</th>
                 <th>Finalizado</th>
+                {canReopen && <th>Acciones</th>}
               </tr>
             </thead>
             <tbody>
               {completedPatients.length === 0 ? (
                 <tr>
-                  <td colSpan={4} className="empty-cell">
+                  <td colSpan={canReopen ? 5 : 4} className="empty-cell">
                     No hay pacientes finalizados aún.
                   </td>
                 </tr>
@@ -86,6 +108,17 @@ export function CompletedPage() {
                     <td>{item.patient.rut}</td>
                     <td>{item.patient.phone ?? '-'}</td>
                     <td>{formatDateTime(item.finished_at)}</td>
+                    {canReopen && (
+                      <td>
+                        <button
+                          className="secondary-button small"
+                          onClick={() => handleReopen(item)}
+                          disabled={reopeningId === item.patient.id}
+                        >
+                          {reopeningId === item.patient.id ? 'Reabriendo...' : 'Reabrir'}
+                        </button>
+                      </td>
+                    )}
                   </tr>
                 ))
               )}

@@ -338,6 +338,37 @@ button:disabled { cursor: not-allowed; opacity: 0.55; }
 }
 .content-area { padding: 36px; }
 
+.metric-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(160px, 1fr));
+  gap: 16px;
+  margin-bottom: 22px;
+}
+.metric-card {
+  min-height: 94px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: white;
+  box-shadow: var(--shadow);
+  padding: 18px;
+  display: grid;
+  align-content: space-between;
+}
+.metric-card span {
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 800;
+}
+.metric-card strong {
+  color: var(--text);
+  font-size: 32px;
+  line-height: 1;
+}
+.metric-primary { border-top: 4px solid var(--primary); }
+.metric-success { border-top: 4px solid var(--success); }
+.metric-stage { border-top: 4px solid #6d5bd0; }
+.metric-muted { border-top: 4px solid #6b7897; }
+
 .stage-grid {
   display: grid;
   grid-template-columns: repeat(5, minmax(170px, 1fr));
@@ -362,6 +393,48 @@ button:disabled { cursor: not-allowed; opacity: 0.55; }
 }
 .stage-card-active { border-color: var(--success); }
 .stage-card-active .stage-icon { background: var(--success); color: white; }
+.stage-dosimetria {
+  --stage-color: #0b51d8;
+  --stage-soft: #eaf1ff;
+}
+.stage-fisica {
+  --stage-color: #6d5bd0;
+  --stage-soft: #f0edff;
+}
+.stage-impresion {
+  --stage-color: #4a5d7a;
+  --stage-soft: #eef2f7;
+}
+.stage-enfermeria {
+  --stage-color: #0aa057;
+  --stage-soft: #e5f8ee;
+}
+.stage-citacion {
+  --stage-color: #b7791f;
+  --stage-soft: #fff6df;
+}
+.stage-finalizado {
+  --stage-color: #087f5b;
+  --stage-soft: #e3fcef;
+}
+.stage-card {
+  border-color: var(--stage-color, var(--primary));
+}
+.stage-card .stage-icon {
+  background: var(--stage-soft, var(--primary-soft));
+  color: var(--stage-color, var(--primary));
+}
+.stage-card span {
+  background: var(--stage-soft, var(--primary-soft));
+  color: var(--stage-color, var(--primary));
+}
+.stage-card-active {
+  border-color: var(--stage-color, var(--success));
+}
+.stage-card-active .stage-icon {
+  background: var(--stage-color, var(--success));
+  color: white;
+}
 .stage-card-disabled {
   border-color: #CCCCCC;
   background: #F5F6F8;
@@ -401,8 +474,8 @@ button:disabled { cursor: not-allowed; opacity: 0.55; }
   font-weight: 900;
 }
 .stage-card strong { display: block; font-size: 17px; }
-.stage-card span { display: inline-block; margin-top: 8px; padding: 4px 10px; border-radius: 999px; background: var(--primary-soft); color: var(--primary); font-size: 13px; }
-.stage-card-active span { background: var(--success-soft); color: var(--success); }
+.stage-card span { display: inline-block; margin-top: 8px; padding: 4px 10px; border-radius: 999px; background: var(--stage-soft, var(--primary-soft)); color: var(--stage-color, var(--primary)); font-size: 13px; }
+.stage-card-active span { background: var(--stage-soft, var(--success-soft)); color: var(--stage-color, var(--success)); }
 
 .toolbar-card {
   display: flex;
@@ -546,6 +619,12 @@ button:disabled { cursor: not-allowed; opacity: 0.55; }
 .info-row span { font-weight: 700; }
 .info-row strong { color: var(--muted); font-weight: 700; }
 .blue-text { color: var(--primary) !important; }
+.stage-text-dosimetria { color: #0b51d8 !important; }
+.stage-text-fisica { color: #6d5bd0 !important; }
+.stage-text-impresion { color: #4a5d7a !important; }
+.stage-text-enfermeria { color: #0aa057 !important; }
+.stage-text-citacion { color: #b7791f !important; }
+.stage-text-finalizado { color: #087f5b !important; }
 .muted-text { color: var(--muted); font-size: 14px; }
 
 .table-wrapper { overflow-x: visible; }
@@ -595,6 +674,12 @@ button:disabled { cursor: not-allowed; opacity: 0.55; }
   font-weight: 800;
   font-size: 12px;
 }
+.stage-pill-dosimetria { background: #eaf1ff; color: #0b51d8; }
+.stage-pill-fisica { background: #f0edff; color: #6d5bd0; }
+.stage-pill-impresion { background: #eef2f7; color: #4a5d7a; }
+.stage-pill-enfermeria { background: #e5f8ee; color: #0aa057; }
+.stage-pill-citacion { background: #fff6df; color: #b7791f; }
+.stage-pill-finalizado { background: #e3fcef; color: #087f5b; }
 .center-cell { text-align: center; }
 .purpose-cell {
   padding: 0;
@@ -708,6 +793,40 @@ button:disabled { cursor: not-allowed; opacity: 0.55; }
 }
 .modal-header strong { display: block; font-size: 22px; color: var(--primary); }
 .modal-header span { display: block; color: var(--muted); margin-top: 4px; }
+.modal-summary {
+  display: grid;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+.modal-summary-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 12px;
+  background: #fbfcff;
+}
+.modal-summary-row strong,
+.modal-summary-row span {
+  display: block;
+}
+.modal-summary-row > div:first-child span {
+  color: var(--muted);
+  font-size: 12px;
+  margin-top: 3px;
+}
+.stage-transition {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+.stage-transition-arrow {
+  color: var(--muted);
+  font-weight: 900;
+}
 .field-label { display: block; margin: 16px 0 8px; font-weight: 900; color: var(--text); }
 .purpose-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
 .purpose-option {
@@ -796,6 +915,7 @@ textarea:focus, input:focus, select:focus { border-color: var(--primary); box-sh
 .checkbox-row input { width: auto; }
 
 @media (max-width: 1180px) {
+  .metric-grid { grid-template-columns: repeat(2, 1fr); }
   .stage-grid { grid-template-columns: repeat(2, 1fr); }
   .dashboard-grid, .admin-grid { grid-template-columns: 1fr; }
   .patient-info-card { order: 2; }
@@ -806,6 +926,8 @@ textarea:focus, input:focus, select:focus { border-color: var(--primary); box-sh
   .sidebar { position: static; height: auto; overflow-y: visible; }
   .content-area { padding: 20px; }
   .stage-grid { grid-template-columns: 1fr; }
+  .metric-grid { grid-template-columns: 1fr; }
+  .modal-summary-row, .stage-transition { align-items: flex-start; flex-direction: column; }
   .toolbar-card, .workflow-footer { flex-direction: column; align-items: stretch; }
   .continue-button { min-width: auto; width: 100%; }
   .purpose-grid { grid-template-columns: 1fr; }

@@ -23,6 +23,15 @@ const REQUIRED_ROLES: Record<Stage, string[]> = {
   Finalizado: [],
 };
 
+const stageClassByStage: Record<Stage, string> = {
+  Dosimetría: 'dosimetria',
+  'Física Médica': 'fisica',
+  Impresión: 'impresion',
+  Enfermería: 'enfermeria',
+  Citación: 'citacion',
+  Finalizado: 'finalizado',
+};
+
 export function DashboardPage() {
   const { user } = useAuth();
   const [patients, setPatients] = useState<Patient[]>([]);
@@ -92,6 +101,9 @@ export function DashboardPage() {
   }, [query]);
 
   const getStageCount = (stage: Stage) => summary.find((item) => item.stage === stage)?.count ?? 0;
+  const activePatientsCount = ALL_STAGES.reduce((total, stage) => total + getStageCount(stage), 0);
+  const accessiblePatientsCount = accessibleStages.reduce((total, stage) => total + getStageCount(stage), 0);
+  const finalizadosCount = getStageCount('Finalizado');
 
   const canProcess = (patient: Patient | null): boolean => {
     if (!patient || !user || patient.current_stage === 'Finalizado') return false;
@@ -158,6 +170,13 @@ export function DashboardPage() {
 
   return (
     <div className="dashboard-page">
+      <div className="metric-grid">
+        <MetricCard label="Pacientes activos" value={activePatientsCount} tone="primary" />
+        <MetricCard label="En mis etapas" value={accessiblePatientsCount} tone="success" />
+        <MetricCard label={selectedStage ? `En ${selectedStage}` : 'Etapa seleccionada'} value={selectedStage ? getStageCount(selectedStage) : 0} tone="stage" />
+        <MetricCard label="Finalizados" value={finalizadosCount} tone="muted" />
+      </div>
+
       <div className="stage-grid">
         {ALL_STAGES.map((stage, index) => {
           const accessible = isStageAccessible(stage);
@@ -210,7 +229,7 @@ export function DashboardPage() {
               <InfoRow label="Teléfono" value={selectedPatient.phone ?? '-'} />
               <InfoRow label="Otro teléfono" value={selectedPatient.trusted_contact_phone ?? '-'} />
               <InfoRow label="Domicilio" value={[selectedPatient.street, selectedPatient.commune, selectedPatient.region].filter(Boolean).join(', ')} />
-              <InfoRow label="Etapa actual" value={selectedPatient.current_stage} strong />
+              <InfoRow label="Etapa actual" value={selectedPatient.current_stage} strong stageClass={stageClassByStage[selectedPatient.current_stage]} />
             </div>
           ) : (
             <p className="muted-text">No hay pacientes para mostrar.</p>
@@ -322,11 +341,20 @@ export function DashboardPage() {
   );
 }
 
-function InfoRow({ label, value, strong = false }: { label: string; value: string; strong?: boolean }) {
+function MetricCard({ label, value, tone }: { label: string; value: number; tone: 'primary' | 'success' | 'stage' | 'muted' }) {
+  return (
+    <section className={`metric-card metric-${tone}`}>
+      <span>{label}</span>
+      <strong>{value}</strong>
+    </section>
+  );
+}
+
+function InfoRow({ label, value, strong = false, stageClass }: { label: string; value: string; strong?: boolean; stageClass?: string }) {
   return (
     <div className="info-row">
       <span>{label}</span>
-      <strong className={strong ? 'blue-text' : ''}>{value || '-'}</strong>
+      <strong className={`${strong ? 'blue-text' : ''} ${stageClass ? `stage-text stage-text-${stageClass}` : ''}`}>{value || '-'}</strong>
     </div>
   );
 }

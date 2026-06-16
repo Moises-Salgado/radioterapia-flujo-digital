@@ -9,6 +9,15 @@ const stageIcons: Record<Stage, string> = {
   Finalizado: '★',
 };
 
+const stageClassByStage: Record<Stage, string> = {
+  Dosimetría: 'dosimetria',
+  'Física Médica': 'fisica',
+  Impresión: 'impresion',
+  Enfermería: 'enfermeria',
+  Citación: 'citacion',
+  Finalizado: 'finalizado',
+};
+
 export function StageCard({
   stage,
   index,
@@ -27,7 +36,7 @@ export function StageCard({
   return (
     <button
       type="button"
-      className={`stage-card ${active ? 'stage-card-active' : ''} ${disabled ? 'stage-card-disabled' : ''}`}
+      className={`stage-card stage-${stageClassByStage[stage]} ${active ? 'stage-card-active' : ''} ${disabled ? 'stage-card-disabled' : ''}`}
       onClick={onClick}
       disabled={disabled}
       aria-pressed={active}
