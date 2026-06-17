@@ -40,6 +40,10 @@ export interface Patient {
   commune?: string | null;
   region?: string | null;
   current_stage: Stage;
+  root_patient_id: number;
+  ficha_number: number;
+  ficha_label: string;
+  ficha_count: number;
   created_by_user_id?: number | null;
   created_at: string;
   latest_purpose?: Purpose | null;

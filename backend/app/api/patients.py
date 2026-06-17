@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session, joinedload
 
 from app.api.deps import get_current_user
 from app.core.database import get_db
-from app.models.entities import Patient, User, WorkflowLog
+from app.models.entities import Patient, Stage, User, WorkflowLog
 from app.schemas.patients import PatientCreate, PatientRead, UploadPatientsResponse, WorkflowLogRead
 from app.services.patient_importer import import_patients_from_text
 from app.services.workflow import get_processable_stages
@@ -76,6 +76,7 @@ def _normalize_search_text(value: str) -> str:
 
 
 def patient_to_read(db: Session, patient: Patient) -> PatientRead:
+    root_id = patient.root_patient_id or patient.id
     latest_log = db.scalar(
         select(WorkflowLog)
         .where(WorkflowLog.patient_id == patient.id)
@@ -83,8 +84,19 @@ def patient_to_read(db: Session, patient: Patient) -> PatientRead:
         .limit(1)
     )
     logs_count = db.scalar(select(func.count()).select_from(WorkflowLog).where(WorkflowLog.patient_id == patient.id)) or 0
+    ficha_count = db.scalar(
+        select(func.count()).select_from(Patient).where(
+            or_(Patient.root_patient_id == root_id, Patient.id == root_id)
+        )
+    ) or 1
     return PatientRead.model_validate(patient).model_copy(
-        update={"latest_purpose": latest_log.purpose if latest_log else None, "logs_count": logs_count}
+        update={
+            "root_patient_id": root_id,
+            "ficha_label": f"F{patient.ficha_number or 1}",
+            "ficha_count": ficha_count,
+            "latest_purpose": latest_log.purpose if latest_log else None,
+            "logs_count": logs_count,
+        }
     )
 
 
@@ -134,6 +146,56 @@ def create_patient(payload: PatientCreate, db: Session = Depends(get_db), curren
     if exists:
         raise HTTPException(status_code=409, detail="Ya existe un paciente con ese RUT")
     patient = Patient(**payload.model_dump(), created_by_user_id=current_user.id)
+    db.add(patient)
+    db.flush()
+    patient.root_patient_id = patient.id
+    db.commit()
+    db.refresh(patient)
+    return patient_to_read(db, patient)
+
+
+@router.post("/{patient_id}/fichas", response_model=PatientRead, status_code=status.HTTP_201_CREATED)
+def create_patient_ficha(
+    patient_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    source = db.get(Patient, patient_id)
+    if not source:
+        raise HTTPException(status_code=404, detail="Paciente no encontrado")
+    if source.current_stage not in {Stage.DOSIMETRIA, Stage.FISICA_MEDICA}:
+        raise HTTPException(status_code=400, detail="Solo se puede crear una nueva ficha en Dosimetría o Física Médica")
+
+    root_id = source.root_patient_id or source.id
+    ficha_count = db.scalar(
+        select(func.count()).select_from(Patient).where(
+            or_(Patient.root_patient_id == root_id, Patient.id == root_id)
+        )
+    ) or 0
+    if ficha_count >= 2:
+        raise HTTPException(status_code=409, detail="Este paciente ya tiene el máximo de 2 fichas")
+
+    max_ficha = db.scalar(
+        select(func.max(Patient.ficha_number)).where(
+            or_(Patient.root_patient_id == root_id, Patient.id == root_id)
+        )
+    ) or source.ficha_number or 1
+
+    patient = Patient(
+        rut=source.rut,
+        full_name=source.full_name,
+        sex=source.sex,
+        age=source.age,
+        phone=source.phone,
+        trusted_contact_phone=source.trusted_contact_phone,
+        street=source.street,
+        commune=source.commune,
+        region=source.region,
+        current_stage=source.current_stage,
+        root_patient_id=root_id,
+        ficha_number=max_ficha + 1,
+        created_by_user_id=current_user.id,
+    )
     db.add(patient)
     db.commit()
     db.refresh(patient)

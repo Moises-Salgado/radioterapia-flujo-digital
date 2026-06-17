@@ -99,8 +99,11 @@ export const patientsApi = {
     const queryString = params.toString();
     return request(`/patients${queryString ? '?' + queryString : ''}`);
   },
-  create(payload: Omit<Patient, 'id' | 'created_at' | 'current_stage' | 'created_by_user_id' | 'latest_purpose' | 'logs_count'>): Promise<Patient> {
+  create(payload: Omit<Patient, 'id' | 'created_at' | 'current_stage' | 'root_patient_id' | 'ficha_number' | 'ficha_label' | 'ficha_count' | 'created_by_user_id' | 'latest_purpose' | 'logs_count'>): Promise<Patient> {
     return request('/patients', { method: 'POST', body: JSON.stringify(payload) });
+  },
+  createFicha(id: number): Promise<Patient> {
+    return request(`/patients/${id}/fichas`, { method: 'POST' });
   },
   logs(id: number): Promise<WorkflowLog[]> {
     return request(`/patients/${id}/logs`);

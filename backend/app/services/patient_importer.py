@@ -77,6 +77,8 @@ def import_patients_from_text(db: Session, text: str, current_user: User | None 
             created_by_user_id=current_user.id if current_user else None,
         )
         db.add(patient)
+        db.flush()
+        patient.root_patient_id = patient.id
         inserted += 1
 
     db.commit()

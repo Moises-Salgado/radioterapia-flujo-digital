@@ -47,6 +47,10 @@ class PatientCreate(PatientBase):
 class PatientRead(PatientBase):
     id: int
     current_stage: StageName
+    root_patient_id: int | None = None
+    ficha_number: int = 1
+    ficha_label: str = "F1"
+    ficha_count: int = 1
     created_by_user_id: int | None
     created_at: datetime
     latest_purpose: PurposeName | None = None

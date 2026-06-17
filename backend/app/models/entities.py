@@ -72,7 +72,7 @@ class Patient(Base):
     __tablename__ = "patients"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
-    rut: Mapped[str] = mapped_column(String(30), nullable=False, unique=True, index=True)
+    rut: Mapped[str] = mapped_column(String(30), nullable=False, index=True)
     full_name: Mapped[str] = mapped_column(String(180), nullable=False, index=True)
     sex: Mapped[str] = mapped_column(String(20), nullable=False)
     age: Mapped[int] = mapped_column(Integer, nullable=False)
@@ -82,11 +82,14 @@ class Patient(Base):
     commune: Mapped[str | None] = mapped_column(String(100), nullable=True)
     region: Mapped[str | None] = mapped_column(String(100), nullable=True)
     current_stage: Mapped[str] = mapped_column(String(50), nullable=False, default=Stage.DOSIMETRIA, index=True)
+    root_patient_id: Mapped[int | None] = mapped_column(ForeignKey("patients.id"), nullable=True, index=True)
+    ficha_number: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
     created_by_user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=utc_now)
 
     created_by: Mapped[User | None] = relationship(back_populates="created_patients")
     workflow_logs: Mapped[list["WorkflowLog"]] = relationship(back_populates="patient", cascade="all, delete-orphan")
+    ficha_root: Mapped["Patient | None"] = relationship(remote_side=[id])
 
 
 class WorkflowLog(Base):

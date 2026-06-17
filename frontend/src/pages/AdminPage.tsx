@@ -1,5 +1,6 @@
 import { FormEvent, useEffect, useState } from 'react';
 import { usersApi } from '../api/client';
+import { useAuth } from '../context/AuthContext';
 import type { Role, User } from '../types/domain';
 
 const ROLES: Role[] = ['Admin', 'Físico Médico', 'Tecnólogo Médico', 'Enfermero/a'];
@@ -13,6 +14,7 @@ const emptyForm = {
 };
 
 export function AdminPage() {
+  const { user: currentUser } = useAuth();
   const [users, setUsers] = useState<User[]>([]);
   const [form, setForm] = useState(emptyForm);
   const [editing, setEditing] = useState<User | null>(null);
@@ -71,14 +73,16 @@ export function AdminPage() {
     }
   };
 
-  const deactivate = async (user: User) => {
-    if (!window.confirm(`¿Desactivar a ${user.full_name}?`)) return;
+  const toggleUserStatus = async (user: User) => {
+    const nextActive = !user.is_active;
+    const action = nextActive ? 'activar' : 'desactivar';
+    if (!nextActive && !window.confirm(`¿Desactivar a ${user.full_name}?`)) return;
     try {
-      await usersApi.deactivate(user.id);
+      await usersApi.update(user.id, { is_active: nextActive });
       await loadUsers();
-      setMessage('Usuario desactivado.');
+      setMessage(`Usuario ${nextActive ? 'activado' : 'desactivado'}.`);
     } catch (err) {
-      setMessage(err instanceof Error ? err.message : 'No se pudo desactivar');
+      setMessage(err instanceof Error ? err.message : `No se pudo ${action}`);
     }
   };
 
@@ -87,7 +91,7 @@ export function AdminPage() {
       <div className="page-header">
         <div>
           <h1>Administración de usuarios</h1>
-          <p>CRUD de usuarios, roles y estado de acceso.</p>
+          <p>Usuarios, roles y estado de acceso.</p>
         </div>
       </div>
 
@@ -96,7 +100,7 @@ export function AdminPage() {
       <div className="admin-grid">
         <section className="panel">
           <div className="panel-title">
-            <span className="circle-icon">＋</span>
+            <span className="circle-icon">+</span>
             <h2>{editing ? 'Editar usuario' : 'Crear usuario'}</h2>
           </div>
           <form className="user-form" onSubmit={handleSubmit}>
@@ -105,7 +109,7 @@ export function AdminPage() {
               <input required value={form.full_name} onChange={(event) => setForm({ ...form, full_name: event.target.value })} />
             </label>
             <label>
-              Username
+              Usuario
               <input
                 required
                 disabled={Boolean(editing)}
@@ -132,6 +136,7 @@ export function AdminPage() {
               <input
                 type="checkbox"
                 checked={form.is_active}
+                disabled={Boolean(editing && editing.id === currentUser?.id)}
                 onChange={(event) => setForm({ ...form, is_active: event.target.checked })}
               />
               Usuario activo
@@ -153,7 +158,7 @@ export function AdminPage() {
               <thead>
                 <tr>
                   <th>Nombre</th>
-                  <th>Username</th>
+                  <th>Usuario</th>
                   <th>Rol</th>
                   <th>Estado</th>
                   <th>Acciones</th>
@@ -165,11 +170,17 @@ export function AdminPage() {
                     <td><strong>{user.full_name}</strong></td>
                     <td>{user.username}</td>
                     <td><span className="stage-pill">{user.role}</span></td>
-                    <td>{user.is_active ? 'Activo' : 'Inactivo'}</td>
+                    <td><span className={`status-pill ${user.is_active ? 'status-active' : 'status-inactive'}`}>{user.is_active ? 'Activo' : 'Inactivo'}</span></td>
                     <td>
                       <div className="row-actions">
                         <button className="secondary-button small" onClick={() => startEdit(user)}>Editar</button>
-                        <button className="danger-button small" onClick={() => deactivate(user)} disabled={!user.is_active}>Desactivar</button>
+                        <button
+                          className={`${user.is_active ? 'danger-button' : 'secondary-button'} small`}
+                          onClick={() => toggleUserStatus(user)}
+                          disabled={user.id === currentUser?.id}
+                        >
+                          {user.is_active ? 'Inactivar' : 'Activar'}
+                        </button>
                       </div>
                     </td>
                   </tr>

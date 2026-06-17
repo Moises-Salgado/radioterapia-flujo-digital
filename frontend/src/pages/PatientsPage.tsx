@@ -123,6 +123,7 @@ export function PatientsPage() {
                 <tr>
                   <th>Paciente</th>
                   <th>RUT</th>
+                  <th>Ficha</th>
                   <th>Etapa</th>
                   <th>Teléfono</th>
                 </tr>
@@ -132,6 +133,7 @@ export function PatientsPage() {
                   <tr key={patient.id}>
                     <td><strong>{patient.full_name}</strong></td>
                     <td>{patient.rut}</td>
+                    <td><span className="ficha-badge">{patient.ficha_label}</span></td>
                     <td><span className="stage-pill">{patient.current_stage}</span></td>
                     <td>{patient.phone}</td>
                   </tr>

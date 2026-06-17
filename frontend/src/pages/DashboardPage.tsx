@@ -53,6 +53,7 @@ export function DashboardPage() {
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('');
   const [uploading, setUploading] = useState(false);
+  const [creatingFicha, setCreatingFicha] = useState(false);
 
   const availableStages = user?.processable_stages ?? [];
   const isStageAccessible = (stage: Stage) => {
@@ -112,6 +113,7 @@ export function DashboardPage() {
   const activePatientsCount = ALL_STAGES.reduce((total, stage) => total + getStageCount(stage), 0);
   const accessiblePatientsCount = accessibleStages.reduce((total, stage) => total + getStageCount(stage), 0);
   const finalizadosCount = getStageCount('Finalizado');
+  const fichaCreationStages: Stage[] = [ALL_STAGES[0], ALL_STAGES[1]];
 
   const canProcess = (patient: Patient | null): boolean => {
     if (!patient || !user || patient.current_stage === 'Finalizado') return false;
@@ -173,6 +175,39 @@ export function DashboardPage() {
       setMessage(`${modalPatientIds.length} paciente${modalPatientIds.length === 1 ? '' : 's'} avanzado${modalPatientIds.length === 1 ? '' : 's'} a ${destination}.`);
     } catch (err) {
       setMessage(err instanceof Error ? err.message : 'No se pudo procesar la etapa');
+    }
+  };
+
+  const canCreateFicha = (patient: Patient | null): boolean => {
+    if (!patient) return false;
+    if (!fichaCreationStages.includes(patient.current_stage)) return false;
+    return patient.ficha_count < 2;
+  };
+
+  const fichaButtonTitle = (patient: Patient | null): string => {
+    if (!patient) return 'Selecciona un paciente';
+    if (!fichaCreationStages.includes(patient.current_stage)) return `Solo se puede crear en ${ALL_STAGES[0]} o ${ALL_STAGES[1]}`;
+    if (!canCreateFicha(patient)) return 'Este paciente ya tiene 2 fichas';
+    return 'Crear nueva ficha para este paciente';
+  };
+
+  const handleCreateFicha = async () => {
+    if (!selectedPatient) return;
+    setCreatingFicha(true);
+    setMessage('');
+    try {
+      const newFicha = await patientsApi.createFicha(selectedPatient.id);
+      const canSeeNewFicha = isStageAccessible(newFicha.current_stage);
+      if (canSeeNewFicha) {
+        setSelectedStage(newFicha.current_stage);
+        setSelectedPatientId(newFicha.id);
+      }
+      await loadData(query, canSeeNewFicha ? newFicha.current_stage : selectedStage);
+      setMessage(`Se creÃ³ ${newFicha.ficha_label} para ${newFicha.full_name}.`);
+    } catch (err) {
+      setMessage(err instanceof Error ? err.message : 'No se pudo crear la ficha');
+    } finally {
+      setCreatingFicha(false);
     }
   };
 
@@ -238,6 +273,7 @@ export function DashboardPage() {
               <InfoRow label="Teléfono" value={selectedPatient.phone ?? '-'} />
               <InfoRow label="Otro teléfono" value={selectedPatient.trusted_contact_phone ?? '-'} />
               <InfoRow label="Domicilio" value={[selectedPatient.street, selectedPatient.commune, selectedPatient.region].filter(Boolean).join(', ')} />
+              <InfoRow label="Ficha" value={selectedPatient.ficha_label} strong />
               <InfoRow label="Etapa actual" value={selectedPatient.current_stage} strong stageClass={stageClassByStage[selectedPatient.current_stage]} />
             </div>
           ) : (
@@ -259,7 +295,19 @@ export function DashboardPage() {
                 )}
               </div>
             </div>
-            {loading && <span className="muted-text">Actualizando...</span>}
+            <div className="workflow-actions">
+              {loading && <span className="muted-text">Actualizando...</span>}
+              {selectedPatient && fichaCreationStages.includes(selectedPatient.current_stage) && (
+                <button
+                  className="secondary-button small"
+                  disabled={!canCreateFicha(selectedPatient) || creatingFicha}
+                  onClick={handleCreateFicha}
+                  title={fichaButtonTitle(selectedPatient)}
+                >
+                  {creatingFicha ? 'Creando...' : 'Nueva ficha'}
+                </button>
+              )}
+            </div>
           </div>
 
           <div className="table-wrapper">
@@ -267,6 +315,7 @@ export function DashboardPage() {
               <thead>
                 <tr>
                   <th>Paciente</th>
+                  <th className="ficha-header">Ficha</th>
                   {visiblePurposes.map((purpose) => (
                     <th key={purpose} className="purpose-header">{purpose}</th>
                   ))}
@@ -289,6 +338,9 @@ export function DashboardPage() {
                             <span>{patient.rut}</span>
                           </div>
                         </div>
+                      </td>
+                      <td className="center-cell ficha-cell">
+                        <span className="ficha-badge">{patient.ficha_label}</span>
                       </td>
                       {visiblePurposes.map((purpose) => (
                         <td key={purpose} className="center-cell purpose-cell">
@@ -321,7 +373,7 @@ export function DashboardPage() {
                 })}
                 {patients.length === 0 && (
                   <tr>
-                    <td colSpan={visiblePurposes.length + 1} className="empty-cell">No se encontraron pacientes.</td>
+                    <td colSpan={visiblePurposes.length + 2} className="empty-cell">No se encontraron pacientes.</td>
                   </tr>
                 )}
               </tbody>

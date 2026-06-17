@@ -3,7 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.api import auth, patients, users, workflow
 from app.core.config import get_settings
-from app.core.database import Base, SessionLocal, engine
+from app.core.database import Base, SessionLocal, engine, migrate_existing_schema
 from app.services.seed import seed_all
 
 settings = get_settings()
@@ -22,6 +22,7 @@ app.add_middleware(
 @app.on_event("startup")
 def on_startup() -> None:
     Base.metadata.create_all(bind=engine)
+    migrate_existing_schema(engine)
     if settings.enable_demo_data:
         with SessionLocal() as db:
             seed_all(db)

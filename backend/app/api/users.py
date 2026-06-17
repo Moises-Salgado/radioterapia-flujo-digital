@@ -41,7 +41,7 @@ def create_user(payload: UserCreate, _: User = Depends(require_admin), db: Sessi
 
 
 @router.patch("/{user_id}", response_model=UserRead)
-def update_user(user_id: int, payload: UserUpdate, _: User = Depends(require_admin), db: Session = Depends(get_db)):
+def update_user(user_id: int, payload: UserUpdate, current_admin: User = Depends(require_admin), db: Session = Depends(get_db)):
     user = db.get(User, user_id)
     if not user:
         raise HTTPException(status_code=404, detail="Usuario no encontrado")
@@ -51,6 +51,8 @@ def update_user(user_id: int, payload: UserUpdate, _: User = Depends(require_adm
     if payload.full_name is not None:
         user.full_name = payload.full_name
     if payload.is_active is not None:
+        if user_id == current_admin.id and payload.is_active is False:
+            raise HTTPException(status_code=400, detail="No puedes desactivar tu propio usuario")
         user.is_active = payload.is_active
     db.commit()
     db.refresh(user)
