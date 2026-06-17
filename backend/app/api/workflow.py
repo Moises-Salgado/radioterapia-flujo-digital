@@ -14,7 +14,7 @@ from app.schemas.workflow import (
     StageSummaryItem,
     StageSummaryResponse,
 )
-from app.services.workflow import can_process_stage, get_next_stage
+from app.services.workflow import can_process_stage, get_next_stage, is_valid_purpose_for_stage
 
 router = APIRouter(prefix="/workflow", tags=["Flujo de Radioterapia"])
 
@@ -47,6 +47,11 @@ def process_patient_stage(
             status_code=status.HTTP_403_FORBIDDEN,
             detail=f"El rol {current_user.role} no puede procesar la etapa {stage_to_process}",
         )
+    if not is_valid_purpose_for_stage(stage_to_process, payload.purpose):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"La opción {payload.purpose} no corresponde a la etapa {stage_to_process}",
+        )
 
     log = WorkflowLog(
         patient_id=patient.id,
@@ -55,7 +60,7 @@ def process_patient_stage(
         purpose=payload.purpose,
         notes=payload.notes,
     )
-    patient.current_stage = get_next_stage(stage_to_process)
+    patient.current_stage = get_next_stage(stage_to_process, payload.purpose)
     db.add(log)
     db.commit()
     db.refresh(patient)

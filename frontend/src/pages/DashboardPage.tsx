@@ -5,14 +5,13 @@ import { StageCard } from '../components/StageCard';
 import { useAuth } from '../context/AuthContext';
 import type { Patient, Purpose, Stage, StageSummaryItem } from '../types/domain';
 
-const PURPOSES: Purpose[] = ['Medición', 'Planificación', 'Replanificación', 'Calcular Dosis'];
 const ALL_STAGES: Stage[] = ['Dosimetría', 'Física Médica', 'Impresión', 'Enfermería', 'Citación'];
-const NEXT_STAGE_BY_STAGE: Partial<Record<Stage, Stage>> = {
-  Dosimetría: 'Física Médica',
-  'Física Médica': 'Impresión',
-  Impresión: 'Enfermería',
-  Enfermería: 'Citación',
-  Citación: 'Finalizado',
+const PURPOSES_BY_STAGE: Record<Exclude<Stage, 'Finalizado'>, Purpose[]> = {
+  Dosimetría: ['Medición', 'Física Médica'],
+  'Física Médica': ['Medición', 'Planificación', 'Replanificación', 'Calcular Dosis'],
+  Impresión: ['Imprimir', 'Devolver a Física Médica'],
+  Enfermería: ['Recepción'],
+  Citación: ['Recepción'],
 };
 const REQUIRED_ROLES: Record<Stage, string[]> = {
   Dosimetría: ['Físico Médico', 'Tecnólogo Médico'],
@@ -22,6 +21,16 @@ const REQUIRED_ROLES: Record<Stage, string[]> = {
   Citación: ['Tecnólogo Médico'],
   Finalizado: [],
 };
+
+function getNextStage(stage: Stage, purpose?: Purpose): Stage {
+  if (stage === 'Impresión' && purpose === 'Devolver a Física Médica') return 'Física Médica';
+  if (stage === 'Dosimetría') return 'Física Médica';
+  if (stage === 'Física Médica') return 'Impresión';
+  if (stage === 'Impresión') return 'Enfermería';
+  if (stage === 'Enfermería') return 'Citación';
+  if (stage === 'Citación') return 'Finalizado';
+  return 'Finalizado';
+}
 
 const stageClassByStage: Record<Stage, string> = {
   Dosimetría: 'dosimetria',
@@ -40,7 +49,6 @@ export function DashboardPage() {
   const [selectedStage, setSelectedStage] = useState<Stage | null>(null);
   const [selectedPatientId, setSelectedPatientId] = useState<number | null>(null);
   const [modalPatientIds, setModalPatientIds] = useState<number[]>([]);
-  const [stageChecked, setStageChecked] = useState<Record<number, boolean>>({});
   const [selectedPurposeByPatient, setSelectedPurposeByPatient] = useState<Record<number, Purpose>>({});
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('');
@@ -53,6 +61,7 @@ export function DashboardPage() {
     return REQUIRED_ROLES[stage].includes(user.role);
   };
   const accessibleStages = ALL_STAGES.filter(isStageAccessible);
+  const visiblePurposes = selectedStage && selectedStage !== 'Finalizado' ? PURPOSES_BY_STAGE[selectedStage] : [];
 
   // Inicializar selectedStage cuando el usuario cambia
   useEffect(() => {
@@ -77,7 +86,6 @@ export function DashboardPage() {
       setSummary(summaryResponse.stages);
       if (!selectedPatientId && patientsResponse.length > 0) setSelectedPatientId(patientsResponse[0].id);
       setSelectedPurposeByPatient({});
-      setStageChecked({});
     } catch (err) {
       setMessage(err instanceof Error ? err.message : 'Error al cargar datos');
     } finally {
@@ -112,13 +120,13 @@ export function DashboardPage() {
   };
 
   const validSelectedPatientIds = useMemo(
-    () => Object.keys(stageChecked)
+    () => Object.keys(selectedPurposeByPatient)
       .map(Number)
       .filter((id) => {
         const patient = patients.find((p) => p.id === id);
-        return Boolean(patient && canProcess(patient) && stageChecked[id] && selectedPurposeByPatient[id]);
+        return Boolean(patient && canProcess(patient) && selectedPurposeByPatient[id]);
       }),
-    [patients, stageChecked, selectedPurposeByPatient],
+    [patients, selectedPurposeByPatient],
   );
 
   const processTooltip = (patient: Patient | null): string => {
@@ -149,7 +157,8 @@ export function DashboardPage() {
     if (modalPatientIds.length === 0) return;
     setMessage('');
     const processedStage = patients.find((patient) => patient.id === modalPatientIds[0])?.current_stage ?? selectedStage;
-    const nextStage = processedStage ? NEXT_STAGE_BY_STAGE[processedStage] : undefined;
+    const firstPurpose = modalPatientIds[0] ? selectedPurposeByPatient[modalPatientIds[0]] : undefined;
+    const nextStage = processedStage ? getNextStage(processedStage, firstPurpose) : undefined;
     try {
       await Promise.all(
         modalPatientIds.map((id) => workflowApi.processPatient(id, selectedPurposeByPatient[id], notes)),
@@ -240,7 +249,15 @@ export function DashboardPage() {
           <div className="panel-title panel-title-between">
             <div>
               <span className="circle-icon">☷</span>
-              <h2>Seguimiento del flujo de trabajo</h2>
+              <div>
+                <h2>Seguimiento del flujo de trabajo</h2>
+                {selectedStage && (
+                  <div className="workflow-stage-context">
+                    <span className={`stage-pill stage-pill-${stageClassByStage[selectedStage]}`}>{selectedStage}</span>
+                    <span>{getStageCount(selectedStage)} paciente{getStageCount(selectedStage) === 1 ? '' : 's'} en esta etapa</span>
+                  </div>
+                )}
+              </div>
             </div>
             {loading && <span className="muted-text">Actualizando...</span>}
           </div>
@@ -250,14 +267,14 @@ export function DashboardPage() {
               <thead>
                 <tr>
                   <th>Paciente</th>
-                  <th>Estado actual</th>
-                  {PURPOSES.map((purpose) => <th key={purpose}>{purpose}</th>)}
+                  {visiblePurposes.map((purpose) => (
+                    <th key={purpose} className="purpose-header">{purpose}</th>
+                  ))}
                 </tr>
               </thead>
               <tbody>
                 {patients.map((patient) => {
                   const canProcessPatient = canProcess(patient);
-                  const isStageChecked = Boolean(stageChecked[patient.id]);
                   const selectedPurpose = selectedPurposeByPatient[patient.id] ?? null;
                   return (
                     <tr
@@ -273,18 +290,7 @@ export function DashboardPage() {
                           </div>
                         </div>
                       </td>
-                      <td className="center-cell stage-checkbox-cell">
-                        <label className="stage-checkbox-row" onClick={(event) => event.stopPropagation()}>
-                          <input
-                            type="checkbox"
-                            checked={isStageChecked}
-                            disabled={!canProcessPatient}
-                            onChange={() => setStageChecked((current) => ({ ...current, [patient.id]: !current[patient.id] }))}
-                            aria-label={`Marcar estado actual para ${patient.full_name}`}
-                          />
-                        </label>
-                      </td>
-                      {PURPOSES.map((purpose) => (
+                      {visiblePurposes.map((purpose) => (
                         <td key={purpose} className="center-cell purpose-cell">
                           <button
                             type="button"
@@ -292,10 +298,19 @@ export function DashboardPage() {
                             onClick={(event) => {
                               event.stopPropagation();
                               if (!canProcessPatient) return;
-                              setSelectedPurposeByPatient((current) => ({ ...current, [patient.id]: purpose }));
+                              setSelectedPurposeByPatient((current) => {
+                                const next = { ...current };
+                                if (next[patient.id] === purpose) {
+                                  delete next[patient.id];
+                                } else {
+                                  next[patient.id] = purpose;
+                                }
+                                return next;
+                              });
                             }}
                             disabled={!canProcessPatient}
-                            aria-label={`Seleccionar propósito ${purpose} para ${patient.full_name}`}
+                            aria-label={`Seleccionar ${purpose} para ${patient.full_name}`}
+                            title={purpose}
                           >
                             {selectedPurpose === purpose ? '✓' : ''}
                           </button>
@@ -306,7 +321,7 @@ export function DashboardPage() {
                 })}
                 {patients.length === 0 && (
                   <tr>
-                    <td colSpan={6} className="empty-cell">No se encontraron pacientes.</td>
+                    <td colSpan={visiblePurposes.length + 1} className="empty-cell">No se encontraron pacientes.</td>
                   </tr>
                 )}
               </tbody>
@@ -320,7 +335,7 @@ export function DashboardPage() {
             <button
               className="primary-button continue-button"
               disabled={validSelectedPatientIds.length === 0}
-              title={validSelectedPatientIds.length === 0 ? 'Marca estado actual y elige un propósito para avanzar' : `Procesar ${validSelectedPatientIds.length} paciente${validSelectedPatientIds.length === 1 ? '' : 's'}`}
+              title={validSelectedPatientIds.length === 0 ? 'Selecciona una opción para avanzar' : `Procesar ${validSelectedPatientIds.length} paciente${validSelectedPatientIds.length === 1 ? '' : 's'}`}
               onClick={() => validSelectedPatientIds.length > 0 && setModalPatientIds(validSelectedPatientIds)}
             >
               {validSelectedPatientIds.length > 1 ? `Procesar ${validSelectedPatientIds.length} pacientes` : 'Continuar con la siguiente etapa →'}
@@ -333,6 +348,7 @@ export function DashboardPage() {
       {modalPatientIds.length > 0 && (
         <ProcessModal
           patients={patients.filter((patient) => modalPatientIds.includes(patient.id))}
+          purposesByPatient={selectedPurposeByPatient}
           onClose={() => setModalPatientIds([])}
           onConfirm={handleConfirmProcess}
         />

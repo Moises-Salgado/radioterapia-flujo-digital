@@ -8,7 +8,15 @@ export type Stage =
   | 'Citación'
   | 'Finalizado';
 
-export type Purpose = 'Medición' | 'Planificación' | 'Replanificación' | 'Calcular Dosis';
+export type Purpose =
+  | 'Medición'
+  | 'Física Médica'
+  | 'Planificación'
+  | 'Replanificación'
+  | 'Calcular Dosis'
+  | 'Imprimir'
+  | 'Devolver a Física Médica'
+  | 'Recepción';
 
 export interface User {
   id: number;

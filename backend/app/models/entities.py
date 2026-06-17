@@ -29,11 +29,24 @@ class Stage:
 
 class Purpose:
     MEDICION = "Medición"
+    FISICA_MEDICA = "Física Médica"
     PLANIFICACION = "Planificación"
     REPLANIFICACION = "Replanificación"
     CALCULAR_DOSIS = "Calcular Dosis"
+    IMPRIMIR = "Imprimir"
+    DEVOLVER_FISICA_MEDICA = "Devolver a Física Médica"
+    RECEPCION = "Recepción"
 
-    ALL = [MEDICION, PLANIFICACION, REPLANIFICACION, CALCULAR_DOSIS]
+    ALL = [
+        MEDICION,
+        FISICA_MEDICA,
+        PLANIFICACION,
+        REPLANIFICACION,
+        CALCULAR_DOSIS,
+        IMPRIMIR,
+        DEVOLVER_FISICA_MEDICA,
+        RECEPCION,
+    ]
 
 
 def utc_now() -> datetime:

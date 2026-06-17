@@ -1,13 +1,5 @@
 import { useState } from 'react';
-import type { Patient, Stage } from '../types/domain';
-
-const NEXT_STAGE_BY_STAGE: Partial<Record<Stage, Stage>> = {
-  Dosimetría: 'Física Médica',
-  'Física Médica': 'Impresión',
-  Impresión: 'Enfermería',
-  Enfermería: 'Citación',
-  Citación: 'Finalizado',
-};
+import type { Patient, Purpose, Stage } from '../types/domain';
 
 const stageClassByStage: Record<Stage, string> = {
   Dosimetría: 'dosimetria',
@@ -18,12 +10,24 @@ const stageClassByStage: Record<Stage, string> = {
   Finalizado: 'finalizado',
 };
 
+function getNextStage(stage: Stage, purpose?: Purpose): Stage {
+  if (stage === 'Impresión' && purpose === 'Devolver a Física Médica') return 'Física Médica';
+  if (stage === 'Dosimetría') return 'Física Médica';
+  if (stage === 'Física Médica') return 'Impresión';
+  if (stage === 'Impresión') return 'Enfermería';
+  if (stage === 'Enfermería') return 'Citación';
+  if (stage === 'Citación') return 'Finalizado';
+  return 'Finalizado';
+}
+
 export function ProcessModal({
   patients,
+  purposesByPatient,
   onClose,
   onConfirm,
 }: {
   patients: Patient[];
+  purposesByPatient: Record<number, Purpose>;
   onClose: () => void;
   onConfirm: (notes?: string) => Promise<void>;
 }) {
@@ -53,21 +57,23 @@ export function ProcessModal({
         </div>
 
         <div className="modal-summary">
-          {patients.map((patient) => (
-            <div key={patient.id} className="modal-summary-row">
-              <div>
-                <strong>{patient.full_name}</strong>
-                <span>{patient.rut}</span>
+          {patients.map((patient) => {
+            const purpose = purposesByPatient[patient.id];
+            const nextStage = getNextStage(patient.current_stage, purpose);
+            return (
+              <div key={patient.id} className="modal-summary-row">
+                <div>
+                  <strong>{patient.full_name}</strong>
+                  <span>{patient.rut} · {purpose}</span>
+                </div>
+                <div className="stage-transition">
+                  <span className={`stage-pill stage-pill-${stageClassByStage[patient.current_stage]}`}>{patient.current_stage}</span>
+                  <span className="stage-transition-arrow">→</span>
+                  <span className={`stage-pill stage-pill-${stageClassByStage[nextStage]}`}>{nextStage}</span>
+                </div>
               </div>
-              <div className="stage-transition">
-                <span className={`stage-pill stage-pill-${stageClassByStage[patient.current_stage]}`}>{patient.current_stage}</span>
-                <span className="stage-transition-arrow">→</span>
-                <span className={`stage-pill stage-pill-${stageClassByStage[NEXT_STAGE_BY_STAGE[patient.current_stage] ?? 'Finalizado']}`}>
-                  {NEXT_STAGE_BY_STAGE[patient.current_stage] ?? 'Finalizado'}
-                </span>
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
 
         <label className="field-label" htmlFor="notes">Observaciones</label>
