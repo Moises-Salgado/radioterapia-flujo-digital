@@ -24,6 +24,28 @@ def get_db():
 
 def migrate_existing_schema(bind: Engine) -> None:
     if bind.dialect.name != "sqlite":
+        with bind.begin() as conn:
+            if bind.dialect.name == "postgresql":
+                exists = conn.exec_driver_sql(
+                    """
+                    SELECT 1
+                    FROM information_schema.tables
+                    WHERE table_name = 'patients'
+                    """
+                ).first()
+                if exists:
+                    column_exists = conn.exec_driver_sql(
+                        """
+                        SELECT 1
+                        FROM information_schema.columns
+                        WHERE table_name = 'patients' AND column_name = 'is_priority'
+                        """
+                    ).first()
+                    if not column_exists:
+                        conn.exec_driver_sql("ALTER TABLE patients ADD COLUMN is_priority BOOLEAN NOT NULL DEFAULT FALSE")
+            return
+
+    if bind.dialect.name != "sqlite":
         return
 
     with bind.connect() as conn:
@@ -43,6 +65,10 @@ def migrate_existing_schema(bind: Engine) -> None:
             if indexed_columns == ["rut"]:
                 has_unique_rut = True
                 break
+
+        if "is_priority" not in columns:
+            conn.exec_driver_sql("ALTER TABLE patients ADD COLUMN is_priority BOOLEAN NOT NULL DEFAULT 0")
+            columns.add("is_priority")
 
         needs_rebuild = "ficha_number" not in columns or "root_patient_id" not in columns or "treatment_number" in columns or has_unique_rut
         if not needs_rebuild:
@@ -75,6 +101,7 @@ def migrate_existing_schema(bind: Engine) -> None:
                     current_stage VARCHAR(50) NOT NULL,
                     root_patient_id INTEGER,
                     ficha_number INTEGER NOT NULL DEFAULT 1,
+                    is_priority BOOLEAN NOT NULL DEFAULT 0,
                     created_by_user_id INTEGER,
                     created_at DATETIME NOT NULL,
                     PRIMARY KEY (id),
@@ -87,11 +114,11 @@ def migrate_existing_schema(bind: Engine) -> None:
                 f"""
                 INSERT INTO patients_new (
                     id, rut, full_name, sex, age, phone, trusted_contact_phone, street, commune, region,
-                    current_stage, root_patient_id, ficha_number, created_by_user_id, created_at
+                    current_stage, root_patient_id, ficha_number, is_priority, created_by_user_id, created_at
                 )
                 SELECT
                     id, rut, full_name, sex, age, phone, trusted_contact_phone, street, commune, region,
-                    current_stage, {root_expression}, {ficha_expression}, created_by_user_id, created_at
+                    current_stage, {root_expression}, {ficha_expression}, COALESCE(is_priority, 0), created_by_user_id, created_at
                 FROM patients
                 """
             )

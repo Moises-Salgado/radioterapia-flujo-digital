@@ -1,4 +1,4 @@
-import { ChangeEvent, useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { patientsApi, workflowApi } from '../api/client';
 import { ProcessModal } from '../components/ProcessModal';
 import { StageCard } from '../components/StageCard';
@@ -7,7 +7,7 @@ import type { Patient, Purpose, Stage, StageSummaryItem } from '../types/domain'
 
 const ALL_STAGES: Stage[] = ['Dosimetría', 'Física Médica', 'Impresión', 'Enfermería', 'Citación'];
 const PURPOSES_BY_STAGE: Record<Exclude<Stage, 'Finalizado'>, Purpose[]> = {
-  Dosimetría: ['Medición', 'Física Médica'],
+  Dosimetría: ['Física Médica'],
   'Física Médica': ['Medición', 'Planificación', 'Replanificación', 'Calcular Dosis'],
   Impresión: ['Imprimir', 'Devolver a Física Médica'],
   Enfermería: ['Recepción'],
@@ -50,10 +50,11 @@ export function DashboardPage() {
   const [selectedPatientId, setSelectedPatientId] = useState<number | null>(null);
   const [modalPatientIds, setModalPatientIds] = useState<number[]>([]);
   const [selectedPurposeByPatient, setSelectedPurposeByPatient] = useState<Record<number, Purpose>>({});
+  const [priorityByPatient, setPriorityByPatient] = useState<Record<number, boolean>>({});
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('');
-  const [uploading, setUploading] = useState(false);
   const [creatingFicha, setCreatingFicha] = useState(false);
+  const [fichaPatientToCreate, setFichaPatientToCreate] = useState<Patient | null>(null);
 
   const availableStages = user?.processable_stages ?? [];
   const isStageAccessible = (stage: Stage) => {
@@ -87,6 +88,9 @@ export function DashboardPage() {
       setSummary(summaryResponse.stages);
       if (!selectedPatientId && patientsResponse.length > 0) setSelectedPatientId(patientsResponse[0].id);
       setSelectedPurposeByPatient({});
+      setPriorityByPatient(
+        Object.fromEntries(patientsResponse.filter((patient) => patient.is_priority).map((patient) => [patient.id, true])),
+      );
     } catch (err) {
       setMessage(err instanceof Error ? err.message : 'Error al cargar datos');
     } finally {
@@ -114,6 +118,7 @@ export function DashboardPage() {
   const accessiblePatientsCount = accessibleStages.reduce((total, stage) => total + getStageCount(stage), 0);
   const finalizadosCount = getStageCount('Finalizado');
   const fichaCreationStages: Stage[] = [ALL_STAGES[0], ALL_STAGES[1]];
+  const showPriorityColumn = selectedStage === 'Dosimetría';
 
   const canProcess = (patient: Patient | null): boolean => {
     if (!patient || !user || patient.current_stage === 'Finalizado') return false;
@@ -130,29 +135,18 @@ export function DashboardPage() {
       }),
     [patients, selectedPurposeByPatient],
   );
+  const prioritySelectedPatientIds = useMemo(
+    () => patients
+      .filter((patient) => patient.current_stage === 'Dosimetría' && !patient.is_priority && priorityByPatient[patient.id])
+      .map((patient) => patient.id),
+    [patients, priorityByPatient],
+  );
 
   const processTooltip = (patient: Patient | null): string => {
     if (!patient) return 'Selecciona un paciente';
     if (patient.current_stage === 'Finalizado') return 'Paciente finalizado';
     if (canProcess(patient)) return 'Procesar etapa actual';
     return `Tu rol (${user?.role}) no puede procesar ${patient.current_stage}`;
-  };
-
-  const handleUpload = async (event: ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-    setUploading(true);
-    setMessage('');
-    try {
-      const result = await patientsApi.uploadTxt(file);
-      setMessage(`Carga lista: ${result.inserted} insertados, ${result.skipped} omitidos. ${result.errors.length ? 'Con errores.' : ''}`);
-      await loadData(query, selectedStage);
-    } catch (err) {
-      setMessage(err instanceof Error ? err.message : 'No se pudo cargar el archivo');
-    } finally {
-      setUploading(false);
-      event.target.value = '';
-    }
   };
 
   const handleConfirmProcess = async (notes?: string) => {
@@ -162,15 +156,13 @@ export function DashboardPage() {
     const firstPurpose = modalPatientIds[0] ? selectedPurposeByPatient[modalPatientIds[0]] : undefined;
     const nextStage = processedStage ? getNextStage(processedStage, firstPurpose) : undefined;
     try {
+      const priorityIdsToSave = prioritySelectedPatientIds;
+      await Promise.all(priorityIdsToSave.map((id) => patientsApi.updatePriority(id, true)));
       await Promise.all(
         modalPatientIds.map((id) => workflowApi.processPatient(id, selectedPurposeByPatient[id], notes)),
       );
       setModalPatientIds([]);
-      if (nextStage && nextStage !== 'Finalizado' && isStageAccessible(nextStage)) {
-        setSelectedStage(nextStage);
-      } else {
-        await loadData(query);
-      }
+      await loadData(query, selectedStage);
       const destination = nextStage ?? 'la siguiente etapa';
       setMessage(`${modalPatientIds.length} paciente${modalPatientIds.length === 1 ? '' : 's'} avanzado${modalPatientIds.length === 1 ? '' : 's'} a ${destination}.`);
     } catch (err) {
@@ -178,32 +170,30 @@ export function DashboardPage() {
     }
   };
 
-  const canCreateFicha = (patient: Patient | null): boolean => {
-    if (!patient) return false;
-    if (!fichaCreationStages.includes(patient.current_stage)) return false;
-    return patient.ficha_count < 2;
-  };
-
-  const fichaButtonTitle = (patient: Patient | null): string => {
-    if (!patient) return 'Selecciona un paciente';
-    if (!fichaCreationStages.includes(patient.current_stage)) return `Solo se puede crear en ${ALL_STAGES[0]} o ${ALL_STAGES[1]}`;
-    if (!canCreateFicha(patient)) return 'Este paciente ya tiene 2 fichas';
-    return 'Crear nueva ficha para este paciente';
+  const handleContinueClick = () => {
+    if (validSelectedPatientIds.length === 0 && prioritySelectedPatientIds.length > 0) {
+      setMessage('Marcaste Prioridad, pero falta seleccionar Física Médica para avanzar el paciente.');
+      return;
+    }
+    if (validSelectedPatientIds.length > 0) {
+      setModalPatientIds(validSelectedPatientIds);
+    }
   };
 
   const handleCreateFicha = async () => {
-    if (!selectedPatient) return;
+    if (!fichaPatientToCreate) return;
     setCreatingFicha(true);
     setMessage('');
     try {
-      const newFicha = await patientsApi.createFicha(selectedPatient.id);
+      const newFicha = await patientsApi.createFicha(fichaPatientToCreate.id, fichaPatientToCreate.current_stage);
       const canSeeNewFicha = isStageAccessible(newFicha.current_stage);
+      setFichaPatientToCreate(null);
       if (canSeeNewFicha) {
         setSelectedStage(newFicha.current_stage);
         setSelectedPatientId(newFicha.id);
       }
       await loadData(query, canSeeNewFicha ? newFicha.current_stage : selectedStage);
-      setMessage(`Se creÃ³ ${newFicha.ficha_label} para ${newFicha.full_name}.`);
+      setMessage(`Se creó ${newFicha.ficha_label} para ${newFicha.full_name}.`);
     } catch (err) {
       setMessage(err instanceof Error ? err.message : 'No se pudo crear la ficha');
     } finally {
@@ -250,10 +240,6 @@ export function DashboardPage() {
             onChange={(event) => setQuery(event.target.value)}
           />
         </div>
-        <label className="upload-button">
-          {uploading ? 'Cargando...' : 'Cargar TXT'}
-          <input type="file" accept=".txt" onChange={handleUpload} disabled={uploading} />
-        </label>
       </div>
 
       {message && <div className="info-banner">{message}</div>}
@@ -275,6 +261,18 @@ export function DashboardPage() {
               <InfoRow label="Domicilio" value={[selectedPatient.street, selectedPatient.commune, selectedPatient.region].filter(Boolean).join(', ')} />
               <InfoRow label="Ficha" value={selectedPatient.ficha_label} strong />
               <InfoRow label="Etapa actual" value={selectedPatient.current_stage} strong stageClass={stageClassByStage[selectedPatient.current_stage]} />
+              {fichaCreationStages.includes(selectedPatient.current_stage) && (
+                <div className="patient-ficha-action">
+                  <button
+                    className="primary-button"
+                    type="button"
+                    onClick={() => setFichaPatientToCreate(selectedPatient)}
+                    disabled={creatingFicha}
+                  >
+                    Crear nueva ficha
+                  </button>
+                </div>
+              )}
             </div>
           ) : (
             <p className="muted-text">No hay pacientes para mostrar.</p>
@@ -297,16 +295,6 @@ export function DashboardPage() {
             </div>
             <div className="workflow-actions">
               {loading && <span className="muted-text">Actualizando...</span>}
-              {selectedPatient && fichaCreationStages.includes(selectedPatient.current_stage) && (
-                <button
-                  className="secondary-button small"
-                  disabled={!canCreateFicha(selectedPatient) || creatingFicha}
-                  onClick={handleCreateFicha}
-                  title={fichaButtonTitle(selectedPatient)}
-                >
-                  {creatingFicha ? 'Creando...' : 'Nueva ficha'}
-                </button>
-              )}
             </div>
           </div>
 
@@ -314,8 +302,9 @@ export function DashboardPage() {
             <table className="workflow-table">
               <thead>
                 <tr>
-                  <th>Paciente</th>
+                  <th className="patient-header">Paciente</th>
                   <th className="ficha-header">Ficha</th>
+                  {showPriorityColumn && <th className="priority-header">Prioridad</th>}
                   {visiblePurposes.map((purpose) => (
                     <th key={purpose} className="purpose-header">{purpose}</th>
                   ))}
@@ -328,20 +317,40 @@ export function DashboardPage() {
                   return (
                     <tr
                       key={patient.id}
-                      className={selectedPatient?.id === patient.id ? 'selected-row' : ''}
+                      className={`${selectedPatient?.id === patient.id ? 'selected-row' : ''} ${patient.is_priority ? 'priority-row' : ''}`}
                       onClick={() => setSelectedPatientId(patient.id)}
                     >
-                      <td>
+                      <td className="patient-column">
                         <div className="patient-cell">
                           <div>
-                            <strong>{patient.full_name}</strong>
-                            <span>{patient.rut}</span>
+                            <strong title={patient.full_name}>
+                              {patient.full_name}
+                            </strong>
+                            <span title={patient.rut}>{patient.rut}</span>
                           </div>
                         </div>
                       </td>
                       <td className="center-cell ficha-cell">
                         <span className="ficha-badge">{patient.ficha_label}</span>
                       </td>
+                      {showPriorityColumn && (
+                        <td className="center-cell priority-cell">
+                          <label className={`priority-check ${patient.is_priority || priorityByPatient[patient.id] ? 'priority-check-active' : ''}`}>
+                            <input
+                              type="checkbox"
+                              checked={Boolean(patient.is_priority || priorityByPatient[patient.id])}
+                              disabled={!canProcessPatient || patient.is_priority}
+                              onClick={(event) => event.stopPropagation()}
+                              onChange={(event) => {
+                                if (!canProcessPatient || patient.is_priority) return;
+                                const checked = event.target.checked;
+                                setPriorityByPatient((current) => ({ ...current, [patient.id]: checked }));
+                              }}
+                            />
+                            <span>{patient.is_priority || priorityByPatient[patient.id] ? '✓' : ''}</span>
+                          </label>
+                        </td>
+                      )}
                       {visiblePurposes.map((purpose) => (
                         <td key={purpose} className="center-cell purpose-cell">
                           <button
@@ -373,7 +382,7 @@ export function DashboardPage() {
                 })}
                 {patients.length === 0 && (
                   <tr>
-                    <td colSpan={visiblePurposes.length + 2} className="empty-cell">No se encontraron pacientes.</td>
+                    <td colSpan={visiblePurposes.length + 2 + (showPriorityColumn ? 1 : 0)} className="empty-cell">No se encontraron pacientes.</td>
                   </tr>
                 )}
               </tbody>
@@ -386,9 +395,9 @@ export function DashboardPage() {
             </div>
             <button
               className="primary-button continue-button"
-              disabled={validSelectedPatientIds.length === 0}
+              disabled={validSelectedPatientIds.length === 0 && prioritySelectedPatientIds.length === 0}
               title={validSelectedPatientIds.length === 0 ? 'Selecciona una opción para avanzar' : `Procesar ${validSelectedPatientIds.length} paciente${validSelectedPatientIds.length === 1 ? '' : 's'}`}
-              onClick={() => validSelectedPatientIds.length > 0 && setModalPatientIds(validSelectedPatientIds)}
+              onClick={handleContinueClick}
             >
               {validSelectedPatientIds.length > 1 ? `Procesar ${validSelectedPatientIds.length} pacientes` : 'Continuar con la siguiente etapa →'}
             </button>
@@ -404,6 +413,69 @@ export function DashboardPage() {
           onClose={() => setModalPatientIds([])}
           onConfirm={handleConfirmProcess}
         />
+      )}
+
+      {fichaPatientToCreate && (
+        <div className="modal-backdrop">
+          <div className="modal-card ficha-modal-card">
+            <div className="modal-header">
+              <div>
+                <strong>Confirmar nueva ficha</strong>
+                <span>Revise los datos antes de crear una ficha adicional para este paciente.</span>
+              </div>
+              <button
+                className="icon-button modal-close-button"
+                type="button"
+                onClick={() => setFichaPatientToCreate(null)}
+                disabled={creatingFicha}
+                aria-label="Cerrar"
+              >
+                x
+              </button>
+            </div>
+
+            <div className="modal-body">
+              <div className="ficha-confirmation">
+                <p>
+                  ¿Desea crear una nueva ficha para el paciente <strong>{fichaPatientToCreate.full_name}</strong>?
+                </p>
+                <div className="ficha-confirmation-grid">
+                  <div>
+                    <span>Paciente</span>
+                    <strong>{fichaPatientToCreate.full_name}</strong>
+                  </div>
+                  <div>
+                    <span>RUT</span>
+                    <strong>{fichaPatientToCreate.rut}</strong>
+                  </div>
+                  <div className={`ficha-stage-confirmation ficha-stage-confirmation-${stageClassByStage[fichaPatientToCreate.current_stage]}`}>
+                    <span>Etapa de creación</span>
+                    <strong className={`stage-pill stage-pill-${stageClassByStage[fichaPatientToCreate.current_stage]}`}>{fichaPatientToCreate.current_stage}</strong>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="modal-actions">
+              <button
+                className="secondary-button"
+                type="button"
+                onClick={() => setFichaPatientToCreate(null)}
+                disabled={creatingFicha}
+              >
+                Cancelar
+              </button>
+              <button
+                className="primary-button"
+                type="button"
+                onClick={handleCreateFicha}
+                disabled={creatingFicha}
+              >
+                {creatingFicha ? 'Creando...' : 'Crear nueva ficha'}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

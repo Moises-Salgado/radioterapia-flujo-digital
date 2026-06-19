@@ -56,6 +56,7 @@ export function ProcessModal({
           <button className="icon-button" onClick={onClose}>×</button>
         </div>
 
+        <div className="modal-body">
         <div className="modal-summary">
           {patients.map((patient) => {
             const purpose = purposesByPatient[patient.id];
@@ -84,6 +85,8 @@ export function ProcessModal({
           value={notes}
           onChange={(event) => setNotes(event.target.value)}
         />
+
+        </div>
 
         <div className="modal-actions">
           <button className="secondary-button" onClick={onClose} disabled={submitting}>Cancelar</button>

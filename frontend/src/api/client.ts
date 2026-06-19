@@ -2,6 +2,7 @@ import type {
   CompletedPatient,
   Patient,
   Purpose,
+  Stage,
   StageSummaryResponse,
   UploadPatientsResponse,
   User,
@@ -99,11 +100,20 @@ export const patientsApi = {
     const queryString = params.toString();
     return request(`/patients${queryString ? '?' + queryString : ''}`);
   },
-  create(payload: Omit<Patient, 'id' | 'created_at' | 'current_stage' | 'root_patient_id' | 'ficha_number' | 'ficha_label' | 'ficha_count' | 'created_by_user_id' | 'latest_purpose' | 'logs_count'>): Promise<Patient> {
+  create(payload: Omit<Patient, 'id' | 'created_at' | 'current_stage' | 'root_patient_id' | 'ficha_number' | 'ficha_label' | 'ficha_count' | 'is_priority' | 'created_by_user_id' | 'latest_purpose' | 'logs_count'>): Promise<Patient> {
     return request('/patients', { method: 'POST', body: JSON.stringify(payload) });
   },
-  createFicha(id: number): Promise<Patient> {
-    return request(`/patients/${id}/fichas`, { method: 'POST' });
+  createFicha(id: number, currentStage: Stage): Promise<Patient> {
+    return request(`/patients/${id}/fichas`, {
+      method: 'POST',
+      body: JSON.stringify({ current_stage: currentStage }),
+    });
+  },
+  updatePriority(id: number, isPriority: boolean): Promise<Patient> {
+    return request(`/patients/${id}/priority`, {
+      method: 'PATCH',
+      body: JSON.stringify({ is_priority: isPriority }),
+    });
   },
   logs(id: number): Promise<WorkflowLog[]> {
     return request(`/patients/${id}/logs`);

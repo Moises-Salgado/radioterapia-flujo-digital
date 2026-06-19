@@ -118,8 +118,8 @@ export function Layout() {
           <button className="sidebar-user profile-trigger" onClick={() => setProfileOpen((current) => !current)}>
             <span className="avatar">{avatar}</span>
             <span className="sidebar-user-text">
-              <strong>{user?.full_name}</strong>
-              <span>{user?.role}</span>
+              <strong title={user?.full_name}>{user?.full_name}</strong>
+              <span title={user?.role}>{user?.role}</span>
             </span>
             <span className={`profile-arrow ${profileOpen ? 'profile-arrow-open' : ''}`} aria-hidden="true" />
           </button>

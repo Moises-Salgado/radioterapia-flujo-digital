@@ -9,7 +9,7 @@ ROLE_BY_STAGE: dict[str, set[str]] = {
 }
 
 PURPOSES_BY_STAGE: dict[str, list[str]] = {
-    Stage.DOSIMETRIA: [Purpose.MEDICION, Purpose.FISICA_MEDICA],
+    Stage.DOSIMETRIA: [Purpose.FISICA_MEDICA],
     Stage.FISICA_MEDICA: [
         Purpose.MEDICION,
         Purpose.PLANIFICACION,

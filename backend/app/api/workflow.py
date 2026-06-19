@@ -77,7 +77,7 @@ def get_completed_patients(db: Session = Depends(get_db), _: User = Depends(get_
     completed_patients = db.scalars(
         select(Patient)
         .where(Patient.current_stage == Stage.FINALIZADO)
-        .order_by(Patient.created_at.desc())
+        .order_by(Patient.is_priority.desc(), func.coalesce(Patient.root_patient_id, Patient.id).asc(), Patient.ficha_number.asc(), Patient.created_at.desc())
     ).all()
 
     results: list[CompletedPatientItem] = []

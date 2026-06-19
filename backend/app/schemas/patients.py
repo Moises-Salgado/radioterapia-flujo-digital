@@ -44,6 +44,14 @@ class PatientCreate(PatientBase):
     pass
 
 
+class PatientFichaCreate(BaseModel):
+    current_stage: StageName
+
+
+class PatientPriorityUpdate(BaseModel):
+    is_priority: bool = True
+
+
 class PatientRead(PatientBase):
     id: int
     current_stage: StageName
@@ -51,6 +59,7 @@ class PatientRead(PatientBase):
     ficha_number: int = 1
     ficha_label: str = "F1"
     ficha_count: int = 1
+    is_priority: bool = False
     created_by_user_id: int | None
     created_at: datetime
     latest_purpose: PurposeName | None = None

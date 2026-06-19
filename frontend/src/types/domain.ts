@@ -44,6 +44,7 @@ export interface Patient {
   ficha_number: number;
   ficha_label: string;
   ficha_count: number;
+  is_priority: boolean;
   created_by_user_id?: number | null;
   created_at: string;
   latest_purpose?: Purpose | null;

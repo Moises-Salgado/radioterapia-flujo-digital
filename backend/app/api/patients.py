@@ -4,10 +4,10 @@ from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, 
 from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session, joinedload
 
-from app.api.deps import get_current_user
+from app.api.deps import get_current_user, require_admin
 from app.core.database import get_db
 from app.models.entities import Patient, Stage, User, WorkflowLog
-from app.schemas.patients import PatientCreate, PatientRead, UploadPatientsResponse, WorkflowLogRead
+from app.schemas.patients import PatientCreate, PatientFichaCreate, PatientPriorityUpdate, PatientRead, UploadPatientsResponse, WorkflowLogRead
 from app.services.patient_importer import import_patients_from_text
 from app.services.workflow import get_processable_stages
 
@@ -117,7 +117,8 @@ def list_patients(
         if processable_stages:
             stmt = stmt.where(Patient.current_stage.in_(processable_stages))
     
-    stmt = stmt.order_by(Patient.created_at.desc())
+    root_sort = func.coalesce(Patient.root_patient_id, Patient.id)
+    stmt = stmt.order_by(Patient.is_priority.desc(), root_sort.asc(), Patient.ficha_number.asc(), Patient.created_at.desc())
     patients = db.scalars(stmt).all()
 
     if q:
@@ -157,6 +158,7 @@ def create_patient(payload: PatientCreate, db: Session = Depends(get_db), curren
 @router.post("/{patient_id}/fichas", response_model=PatientRead, status_code=status.HTTP_201_CREATED)
 def create_patient_ficha(
     patient_id: int,
+    payload: PatientFichaCreate,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -165,16 +167,10 @@ def create_patient_ficha(
         raise HTTPException(status_code=404, detail="Paciente no encontrado")
     if source.current_stage not in {Stage.DOSIMETRIA, Stage.FISICA_MEDICA}:
         raise HTTPException(status_code=400, detail="Solo se puede crear una nueva ficha en Dosimetría o Física Médica")
+    if payload.current_stage != source.current_stage:
+        raise HTTPException(status_code=400, detail="La nueva ficha debe crearse en la etapa actual del paciente")
 
     root_id = source.root_patient_id or source.id
-    ficha_count = db.scalar(
-        select(func.count()).select_from(Patient).where(
-            or_(Patient.root_patient_id == root_id, Patient.id == root_id)
-        )
-    ) or 0
-    if ficha_count >= 2:
-        raise HTTPException(status_code=409, detail="Este paciente ya tiene el máximo de 2 fichas")
-
     max_ficha = db.scalar(
         select(func.max(Patient.ficha_number)).where(
             or_(Patient.root_patient_id == root_id, Patient.id == root_id)
@@ -191,12 +187,31 @@ def create_patient_ficha(
         street=source.street,
         commune=source.commune,
         region=source.region,
-        current_stage=source.current_stage,
+        current_stage=payload.current_stage,
         root_patient_id=root_id,
         ficha_number=max_ficha + 1,
+        is_priority=False,
         created_by_user_id=current_user.id,
     )
     db.add(patient)
+    db.commit()
+    db.refresh(patient)
+    return patient_to_read(db, patient)
+
+
+@router.patch("/{patient_id}/priority", response_model=PatientRead)
+def update_patient_priority(
+    patient_id: int,
+    payload: PatientPriorityUpdate,
+    db: Session = Depends(get_db),
+    _: User = Depends(get_current_user),
+):
+    patient = db.get(Patient, patient_id)
+    if not patient:
+        raise HTTPException(status_code=404, detail="Paciente no encontrado")
+
+    patient.is_priority = payload.is_priority
+
     db.commit()
     db.refresh(patient)
     return patient_to_read(db, patient)
@@ -206,7 +221,7 @@ def create_patient_ficha(
 async def upload_patients_txt(
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_admin),
 ):
     if not file.filename.lower().endswith(".txt"):
         raise HTTPException(status_code=400, detail="Solo se permiten archivos .txt")

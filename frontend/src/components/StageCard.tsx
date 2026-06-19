@@ -41,9 +41,11 @@ export function StageCard({
       disabled={disabled}
       aria-pressed={active}
     >
-      <div className="stage-number">{index}</div>
-      <div className="stage-icon">{stageIcons[stage]}</div>
-      <div>
+      <div className="stage-card-top">
+        <div className="stage-number">Etapa {index}</div>
+        <div className="stage-icon">{stageIcons[stage]}</div>
+      </div>
+      <div className="stage-card-copy">
         <strong>{stage}</strong>
         <span>{count} paciente{count === 1 ? '' : 's'}</span>
       </div>

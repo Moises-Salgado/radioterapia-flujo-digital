@@ -84,6 +84,7 @@ class Patient(Base):
     current_stage: Mapped[str] = mapped_column(String(50), nullable=False, default=Stage.DOSIMETRIA, index=True)
     root_patient_id: Mapped[int | None] = mapped_column(ForeignKey("patients.id"), nullable=True, index=True)
     ficha_number: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    is_priority: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     created_by_user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=utc_now)
 

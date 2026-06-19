@@ -96,7 +96,7 @@ export function CompletedPage() {
                 </tr>
               ) : (
                 completedPatients.map((item) => (
-                  <tr key={item.patient.id}>
+                  <tr key={item.patient.id} className={item.patient.is_priority ? 'priority-row' : ''}>
                     <td>
                       <div className="patient-cell">
                         <div>
