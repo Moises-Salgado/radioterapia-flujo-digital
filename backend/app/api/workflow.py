@@ -42,7 +42,7 @@ def process_patient_stage(
         raise HTTPException(status_code=400, detail="El paciente ya está finalizado")
 
     stage_to_process = patient.current_stage
-    if not can_process_stage(current_user.role, stage_to_process):
+    if not can_process_stage(current_user.role, stage_to_process, db):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail=f"El rol {current_user.role} no puede procesar la etapa {stage_to_process}",
@@ -105,7 +105,7 @@ def reopen_completed_patient(
     if patient.current_stage != Stage.FINALIZADO:
         raise HTTPException(status_code=400, detail="Solo se pueden reabrir pacientes finalizados")
 
-    patient.current_stage = Stage.CITACION
+    patient.current_stage = Stage.INICIO_TERMINO
     db.commit()
     db.refresh(patient)
     return patient_to_read(db, patient)

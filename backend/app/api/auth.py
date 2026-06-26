@@ -21,13 +21,17 @@ def login(payload: LoginRequest, db: Session = Depends(get_db)):
     if not user.is_active:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Usuario inactivo")
     token = create_access_token(subject=user.id, extra={"role": user.role})
-    return TokenResponse(access_token=token, user=user)
+    user_read = UserRead.model_validate(user)
+    return TokenResponse(
+        access_token=token,
+        user=user_read.model_copy(update={"processable_stages": get_processable_stages(user.role, db)}),
+    )
 
 
 @router.get("/me", response_model=UserRead)
-def me(current_user: User = Depends(get_current_user)):
+def me(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     user_read = UserRead.model_validate(current_user)
-    return user_read.model_copy(update={"processable_stages": get_processable_stages(current_user.role)})
+    return user_read.model_copy(update={"processable_stages": get_processable_stages(current_user.role, db)})
 
 
 @router.patch("/me", response_model=UserRead)
@@ -48,4 +52,4 @@ def update_me(
     db.commit()
     db.refresh(current_user)
     user_read = UserRead.model_validate(current_user)
-    return user_read.model_copy(update={"processable_stages": get_processable_stages(current_user.role)})
+    return user_read.model_copy(update={"processable_stages": get_processable_stages(current_user.role, db)})

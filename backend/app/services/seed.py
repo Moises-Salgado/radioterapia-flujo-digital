@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 from app.core.security import get_password_hash
 from app.models.entities import Patient, Role, User
 from app.services.patient_importer import import_patients_from_text
+from app.services.roles import seed_role_definitions
 
 SAMPLE_PATIENTS = """RUT,Nombre,Sexo,Edad,Telefono,ContactoConfianza,Calle,Comuna,Region
 11111111-1,Juan Pérez González,M,58,+56911111111,+56921111111,Av. Los Carrera 120,Concepción,Biobío
@@ -58,6 +59,7 @@ def seed_patients(db: Session) -> None:
 
 
 def seed_all(db: Session) -> None:
+    seed_role_definitions(db)
     seed_admin(db)
     seed_demo_users(db)
     seed_patients(db)

@@ -1,20 +1,26 @@
 import type { Stage } from '../types/domain';
 
 const stageIcons: Record<Stage, string> = {
-  Dosimetría: '✓',
-  'Física Médica': '⚛',
-  Impresión: '▣',
-  Enfermería: '✚',
-  Citación: '▦',
-  Finalizado: '★',
+  Ingreso: '+',
+  Simulaci\u00f3n: 'S',
+  Dosimetr\u00eda: 'D',
+  'F\u00edsica M\u00e9dica': 'F',
+  Impresi\u00f3n: 'I',
+  Enfermer\u00eda: 'E',
+  Citaci\u00f3n: 'C',
+  'Inicio/Termino de tratamiento': 'T',
+  Finalizado: '*',
 };
 
 const stageClassByStage: Record<Stage, string> = {
-  Dosimetría: 'dosimetria',
-  'Física Médica': 'fisica',
-  Impresión: 'impresion',
-  Enfermería: 'enfermeria',
-  Citación: 'citacion',
+  Ingreso: 'ingreso',
+  Simulaci\u00f3n: 'simulacion',
+  Dosimetr\u00eda: 'dosimetria',
+  'F\u00edsica M\u00e9dica': 'fisica',
+  Impresi\u00f3n: 'impresion',
+  Enfermer\u00eda: 'enfermeria',
+  Citaci\u00f3n: 'citacion',
+  'Inicio/Termino de tratamiento': 'tratamiento',
   Finalizado: 'finalizado',
 };
 

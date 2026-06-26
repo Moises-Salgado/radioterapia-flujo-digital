@@ -5,39 +5,39 @@ import { StageCard } from '../components/StageCard';
 import { useAuth } from '../context/AuthContext';
 import type { Patient, Purpose, Stage, StageSummaryItem } from '../types/domain';
 
-const ALL_STAGES: Stage[] = ['Dosimetría', 'Física Médica', 'Impresión', 'Enfermería', 'Citación'];
+const ALL_STAGES: Stage[] = ['Ingreso', 'Simulación', 'Dosimetría', 'Física Médica', 'Impresión', 'Enfermería', 'Citación', 'Inicio/Termino de tratamiento'];
 const PURPOSES_BY_STAGE: Record<Exclude<Stage, 'Finalizado'>, Purpose[]> = {
+  Ingreso: ['Simulación'],
+  Simulación: ['Dosimetría'],
   Dosimetría: ['Física Médica'],
   'Física Médica': ['Medición', 'Planificación', 'Replanificación', 'Calcular Dosis'],
   Impresión: ['Imprimir', 'Devolver a Física Médica'],
   Enfermería: ['Recepción'],
-  Citación: ['Recepción'],
+  Citación: ['Citar', 'Fallecido / no disponible'],
+  'Inicio/Termino de tratamiento': ['Iniciar/terminar tratamiento', 'Fallecido / no disponible'],
 };
-const REQUIRED_ROLES: Record<Stage, string[]> = {
-  Dosimetría: ['Físico Médico', 'Tecnólogo Médico'],
-  'Física Médica': ['Físico Médico'],
-  Impresión: ['Tecnólogo Médico'],
-  Enfermería: ['Enfermero/a'],
-  Citación: ['Tecnólogo Médico'],
-  Finalizado: [],
-};
-
 function getNextStage(stage: Stage, purpose?: Purpose): Stage {
   if (stage === 'Impresión' && purpose === 'Devolver a Física Médica') return 'Física Médica';
+  if (purpose === 'Fallecido / no disponible') return 'Finalizado';
+  if (stage === 'Ingreso') return 'Simulación';
+  if (stage === 'Simulación') return 'Dosimetría';
   if (stage === 'Dosimetría') return 'Física Médica';
   if (stage === 'Física Médica') return 'Impresión';
   if (stage === 'Impresión') return 'Enfermería';
   if (stage === 'Enfermería') return 'Citación';
-  if (stage === 'Citación') return 'Finalizado';
+  if (stage === 'Citación') return 'Inicio/Termino de tratamiento';
   return 'Finalizado';
 }
 
 const stageClassByStage: Record<Stage, string> = {
+  Ingreso: 'ingreso',
+  Simulación: 'simulacion',
   Dosimetría: 'dosimetria',
   'Física Médica': 'fisica',
   Impresión: 'impresion',
   Enfermería: 'enfermeria',
   Citación: 'citacion',
+  'Inicio/Termino de tratamiento': 'tratamiento',
   Finalizado: 'finalizado',
 };
 
@@ -60,7 +60,7 @@ export function DashboardPage() {
   const isStageAccessible = (stage: Stage) => {
     if (!user) return false;
     if (user.role === 'Admin') return true;
-    return REQUIRED_ROLES[stage].includes(user.role);
+    return availableStages.includes(stage);
   };
   const accessibleStages = ALL_STAGES.filter(isStageAccessible);
   const visiblePurposes = selectedStage && selectedStage !== 'Finalizado' ? PURPOSES_BY_STAGE[selectedStage] : [];
@@ -117,13 +117,13 @@ export function DashboardPage() {
   const activePatientsCount = ALL_STAGES.reduce((total, stage) => total + getStageCount(stage), 0);
   const accessiblePatientsCount = accessibleStages.reduce((total, stage) => total + getStageCount(stage), 0);
   const finalizadosCount = getStageCount('Finalizado');
-  const fichaCreationStages: Stage[] = [ALL_STAGES[0], ALL_STAGES[1]];
+  const fichaCreationStages: Stage[] = ['Dosimetría', 'Física Médica'];
   const showPriorityColumn = selectedStage === 'Dosimetría';
 
   const canProcess = (patient: Patient | null): boolean => {
     if (!patient || !user || patient.current_stage === 'Finalizado') return false;
     if (user.role === 'Admin') return true;
-    return REQUIRED_ROLES[patient.current_stage].includes(user.role);
+    return availableStages.includes(patient.current_stage);
   };
 
   const validSelectedPatientIds = useMemo(
@@ -355,7 +355,7 @@ export function DashboardPage() {
                         <td key={purpose} className="center-cell purpose-cell">
                           <button
                             type="button"
-                            className={`purpose-dot ${selectedPurpose === purpose ? 'purpose-dot-active' : ''} ${!canProcessPatient ? 'purpose-dot-disabled' : ''}`}
+                            className={`purpose-dot ${purpose === 'Fallecido / no disponible' ? 'purpose-dot-square purpose-dot-unavailable' : ''} ${selectedPurpose === purpose ? 'purpose-dot-active' : ''} ${!canProcessPatient ? 'purpose-dot-disabled' : ''}`}
                             onClick={(event) => {
                               event.stopPropagation();
                               if (!canProcessPatient) return;

@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api import auth, patients, users, workflow
+from app.api import auth, patients, roles, users, workflow
 from app.core.config import get_settings
 from app.core.database import Base, SessionLocal, engine, migrate_existing_schema
 from app.services.seed import seed_all
@@ -34,6 +34,7 @@ def health_check():
 
 
 app.include_router(auth.router, prefix="/api")
+app.include_router(roles.router, prefix="/api")
 app.include_router(users.router, prefix="/api")
 app.include_router(patients.router, prefix="/api")
 app.include_router(workflow.router, prefix="/api")

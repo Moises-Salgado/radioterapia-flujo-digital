@@ -5,15 +5,16 @@ from sqlalchemy.orm import Session
 from app.api.deps import require_admin
 from app.core.database import get_db
 from app.core.security import get_password_hash
-from app.models.entities import Role, User
+from app.models.entities import User
 from app.schemas.users import UserCreate, UserPasswordUpdate, UserRead, UserUpdate
+from app.services.roles import role_exists
 
 router = APIRouter(prefix="/users", tags=["Usuarios"])
 
 
-def _validate_role(role: str) -> None:
-    if role not in Role.ALL:
-        raise HTTPException(status_code=422, detail="Rol inválido")
+def _validate_role(db: Session, role: str) -> None:
+    if not role_exists(db, role):
+        raise HTTPException(status_code=422, detail="Rol invalido")
 
 
 @router.get("", response_model=list[UserRead])
@@ -23,7 +24,7 @@ def list_users(_: User = Depends(require_admin), db: Session = Depends(get_db)):
 
 @router.post("", response_model=UserRead, status_code=status.HTTP_201_CREATED)
 def create_user(payload: UserCreate, _: User = Depends(require_admin), db: Session = Depends(get_db)):
-    _validate_role(payload.role)
+    _validate_role(db, payload.role)
     exists = db.scalar(select(User).where(User.username == payload.username))
     if exists:
         raise HTTPException(status_code=409, detail="El username ya existe")
@@ -41,12 +42,17 @@ def create_user(payload: UserCreate, _: User = Depends(require_admin), db: Sessi
 
 
 @router.patch("/{user_id}", response_model=UserRead)
-def update_user(user_id: int, payload: UserUpdate, current_admin: User = Depends(require_admin), db: Session = Depends(get_db)):
+def update_user(
+    user_id: int,
+    payload: UserUpdate,
+    current_admin: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
     user = db.get(User, user_id)
     if not user:
         raise HTTPException(status_code=404, detail="Usuario no encontrado")
     if payload.role is not None:
-        _validate_role(payload.role)
+        _validate_role(db, payload.role)
         user.role = payload.role
     if payload.full_name is not None:
         user.full_name = payload.full_name

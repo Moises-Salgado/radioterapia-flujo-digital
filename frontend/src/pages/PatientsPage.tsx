@@ -18,7 +18,7 @@ const emptyPatient = {
 type SortKey = 'full_name' | 'rut' | 'ficha_number' | 'current_stage';
 type SortDirection = 'asc' | 'desc';
 
-const STAGE_ORDER = ['dosimetria', 'fisica medica', 'impresion', 'enfermeria', 'citacion', 'finalizado'];
+const STAGE_ORDER = ['ingreso', 'simulacion', 'dosimetria', 'fisica medica', 'impresion', 'enfermeria', 'citacion', 'inicio/termino de tratamiento', 'finalizado'];
 const CHILE_REGIONS = [
   'Arica y Parinacota',
   'Tarapacá',
@@ -153,7 +153,7 @@ export function PatientsPage() {
       });
       setForm(emptyPatient);
       await load();
-      setMessage('Paciente creado en etapa Dosimetría.');
+      setMessage('Paciente creado en etapa Ingreso.');
     } catch (err) {
       setMessage(err instanceof Error ? err.message : 'No se pudo crear paciente');
     }

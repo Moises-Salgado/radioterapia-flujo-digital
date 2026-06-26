@@ -37,7 +37,7 @@ export function CompletedPage() {
     });
 
   const handleReopen = async (item: CompletedPatient) => {
-    const confirmed = window.confirm(`¿Reabrir a ${item.patient.full_name}? Volverá a la etapa Citación.`);
+    const confirmed = window.confirm(`¿Reabrir a ${item.patient.full_name}? Volverá a la etapa Inicio/Termino de tratamiento.`);
     if (!confirmed) return;
 
     setReopeningId(item.patient.id);
@@ -45,7 +45,7 @@ export function CompletedPage() {
     try {
       await workflowApi.reopenPatient(item.patient.id);
       setCompletedPatients((current) => current.filter((completed) => completed.patient.id !== item.patient.id));
-      setMessage(`${item.patient.full_name} fue reabierto y enviado a Citación.`);
+      setMessage(`${item.patient.full_name} fue reabierto y enviado a Inicio/Termino de tratamiento.`);
     } catch (err) {
       setMessage(err instanceof Error ? err.message : 'No se pudo reabrir el paciente');
     } finally {

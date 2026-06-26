@@ -113,7 +113,7 @@ def list_patients(
     if stage:
         stmt = stmt.where(Patient.current_stage == stage)
     elif not include_all:
-        processable_stages = get_processable_stages(current_user.role)
+        processable_stages = get_processable_stages(current_user.role, db)
         if processable_stages:
             stmt = stmt.where(Patient.current_stage.in_(processable_stages))
     

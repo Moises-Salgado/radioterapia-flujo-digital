@@ -416,7 +416,7 @@ button:disabled { cursor: not-allowed; opacity: 0.55; }
 
 .stage-grid {
   display: grid;
-  grid-template-columns: repeat(5, minmax(170px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
   gap: 20px;
   margin-bottom: 26px;
 }
@@ -440,6 +440,14 @@ button:disabled { cursor: not-allowed; opacity: 0.55; }
 }
 .stage-card-active { border-color: var(--stage-color, var(--success)); }
 .stage-card-active .stage-icon { background: var(--stage-color, var(--success)); color: white; }
+.stage-ingreso {
+  --stage-color: #0b6b88;
+  --stage-soft: #e7f7fb;
+}
+.stage-simulacion {
+  --stage-color: #7c3aed;
+  --stage-soft: #f3edff;
+}
 .stage-dosimetria {
   --stage-color: #0b51d8;
   --stage-soft: #eaf1ff;
@@ -459,6 +467,10 @@ button:disabled { cursor: not-allowed; opacity: 0.55; }
 .stage-citacion {
   --stage-color: #b7791f;
   --stage-soft: #fff6df;
+}
+.stage-tratamiento {
+  --stage-color: #d43f78;
+  --stage-soft: #fff0f6;
 }
 .stage-finalizado {
   --stage-color: #087f5b;
@@ -769,11 +781,14 @@ button:disabled { cursor: not-allowed; opacity: 0.55; }
   line-height: 1.35;
 }
 .blue-text { color: var(--primary) !important; }
+.stage-text-ingreso { color: #0b6b88 !important; }
+.stage-text-simulacion { color: #7c3aed !important; }
 .stage-text-dosimetria { color: #0b51d8 !important; }
 .stage-text-fisica { color: #6d5bd0 !important; }
 .stage-text-impresion { color: #4a5d7a !important; }
 .stage-text-enfermeria { color: #0aa057 !important; }
 .stage-text-citacion { color: #b7791f !important; }
+.stage-text-tratamiento { color: #d43f78 !important; }
 .stage-text-finalizado { color: #087f5b !important; }
 .muted-text { color: var(--muted); font-size: 14px; }
 
@@ -922,11 +937,14 @@ button:disabled { cursor: not-allowed; opacity: 0.55; }
   font-weight: 800;
   font-size: 12px;
 }
+.stage-pill-ingreso { background: #e7f7fb; color: #0b6b88; }
+.stage-pill-simulacion { background: #f3edff; color: #7c3aed; }
 .stage-pill-dosimetria { background: #eaf1ff; color: #0b51d8; }
 .stage-pill-fisica { background: #f0edff; color: #6d5bd0; }
 .stage-pill-impresion { background: #eef2f7; color: #4a5d7a; }
 .stage-pill-enfermeria { background: #e5f8ee; color: #0aa057; }
 .stage-pill-citacion { background: #fff6df; color: #b7791f; }
+.stage-pill-tratamiento { background: #fff0f6; color: #d43f78; }
 .stage-pill-finalizado { background: #e3fcef; color: #087f5b; }
 .status-pill {
   display: inline-flex;
@@ -1028,6 +1046,20 @@ button:disabled { cursor: not-allowed; opacity: 0.55; }
   color: white;
   font-size: 14px;
   font-weight: 900;
+}
+.purpose-dot-square {
+  border-radius: 8px;
+}
+.purpose-dot-unavailable {
+  border-color: #c2410c;
+  background: #fff7ed;
+  color: #c2410c;
+}
+.purpose-dot-unavailable.purpose-dot-active {
+  border-color: #c2410c;
+  background: #c2410c;
+  color: white;
+  box-shadow: 0 8px 16px rgba(194, 65, 12, 0.2);
 }
 .stage-status {
   display: inline-flex;
@@ -1329,9 +1361,67 @@ textarea:focus, input:focus, select:focus { border-color: var(--primary); box-sh
 .page-header h1 { margin: 0; color: var(--primary); }
 .page-header p { margin: 6px 0 0; color: var(--muted); }
 .admin-grid { display: grid; grid-template-columns: 380px 1fr; gap: 24px; align-items: start; }
+.admin-side-stack,
+.admin-content-stack {
+  display: grid;
+  gap: 18px;
+}
 .user-form { display: grid; gap: 13px; }
 .checkbox-row { display: flex !important; align-items: center; gap: 10px; }
 .checkbox-row input { width: auto; }
+.role-stage-field {
+  display: grid;
+  gap: 10px;
+}
+.role-stage-field > strong {
+  font-size: 14px;
+}
+.role-stage-grid {
+  display: grid;
+  gap: 8px;
+}
+.role-stage-option {
+  display: flex !important;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fbfcff;
+}
+.role-stage-option input {
+  width: auto;
+}
+.role-list {
+  display: grid;
+  gap: 10px;
+}
+.role-card {
+  display: grid;
+  grid-template-columns: minmax(160px, 0.8fr) minmax(0, 1fr);
+  gap: 12px;
+  align-items: center;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fbfcff;
+}
+.role-card strong,
+.role-card span {
+  display: block;
+}
+.role-card > div:first-child span {
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+.role-stage-pills {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
 
 @media (max-width: 1180px) {
   .metric-grid { grid-template-columns: repeat(2, 1fr); }

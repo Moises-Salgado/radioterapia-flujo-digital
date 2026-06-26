@@ -16,18 +16,23 @@ class Role:
 
 
 class Stage:
+    INGRESO = "Ingreso"
+    SIMULACION = "Simulación"
     DOSIMETRIA = "Dosimetría"
     FISICA_MEDICA = "Física Médica"
     IMPRESION = "Impresión"
     ENFERMERIA = "Enfermería"
     CITACION = "Citación"
+    INICIO_TERMINO = "Inicio/Termino de tratamiento"
     FINALIZADO = "Finalizado"
 
-    ORDER = [DOSIMETRIA, FISICA_MEDICA, IMPRESION, ENFERMERIA, CITACION]
+    ORDER = [INGRESO, SIMULACION, DOSIMETRIA, FISICA_MEDICA, IMPRESION, ENFERMERIA, CITACION, INICIO_TERMINO]
     ALL = ORDER + [FINALIZADO]
 
 
 class Purpose:
+    SIMULACION = "Simulación"
+    DOSIMETRIA = "Dosimetría"
     MEDICION = "Medición"
     FISICA_MEDICA = "Física Médica"
     PLANIFICACION = "Planificación"
@@ -35,9 +40,14 @@ class Purpose:
     CALCULAR_DOSIS = "Calcular Dosis"
     IMPRIMIR = "Imprimir"
     DEVOLVER_FISICA_MEDICA = "Devolver a Física Médica"
+    CITAR = "Citar"
     RECEPCION = "Recepción"
+    INICIAR_TERMINAR_TRATAMIENTO = "Iniciar/terminar tratamiento"
+    FALLECIDO_NO_DISPONIBLE = "Fallecido / no disponible"
 
     ALL = [
+        SIMULACION,
+        DOSIMETRIA,
         MEDICION,
         FISICA_MEDICA,
         PLANIFICACION,
@@ -45,7 +55,10 @@ class Purpose:
         CALCULAR_DOSIS,
         IMPRIMIR,
         DEVOLVER_FISICA_MEDICA,
+        CITAR,
         RECEPCION,
+        INICIAR_TERMINAR_TRATAMIENTO,
+        FALLECIDO_NO_DISPONIBLE,
     ]
 
 
@@ -68,6 +81,16 @@ class User(Base):
     workflow_logs: Mapped[list["WorkflowLog"]] = relationship(back_populates="user")
 
 
+class RoleDefinition(Base):
+    __tablename__ = "role_definitions"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    name: Mapped[str] = mapped_column(String(80), nullable=False, unique=True, index=True)
+    processable_stages: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    is_system: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=utc_now)
+
+
 class Patient(Base):
     __tablename__ = "patients"
 
@@ -81,7 +104,7 @@ class Patient(Base):
     street: Mapped[str | None] = mapped_column(String(180), nullable=True)
     commune: Mapped[str | None] = mapped_column(String(100), nullable=True)
     region: Mapped[str | None] = mapped_column(String(100), nullable=True)
-    current_stage: Mapped[str] = mapped_column(String(50), nullable=False, default=Stage.DOSIMETRIA, index=True)
+    current_stage: Mapped[str] = mapped_column(String(80), nullable=False, default=Stage.INGRESO, index=True)
     root_patient_id: Mapped[int | None] = mapped_column(ForeignKey("patients.id"), nullable=True, index=True)
     ficha_number: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
     is_priority: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)

@@ -2,6 +2,7 @@ import type {
   CompletedPatient,
   Patient,
   Purpose,
+  RoleDefinition,
   Stage,
   StageSummaryResponse,
   UploadPatientsResponse,
@@ -9,7 +10,7 @@ import type {
   WorkflowLog,
 } from '../types/domain';
 
-const API_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:8000/api';
+const API_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:8012/api';
 const TOKEN_KEY = 'rt_access_token';
 
 export function getToken(): string | null {
@@ -88,6 +89,15 @@ export const usersApi = {
   },
   deactivate(id: number): Promise<void> {
     return request(`/users/${id}`, { method: 'DELETE' });
+  },
+};
+
+export const rolesApi = {
+  list(): Promise<RoleDefinition[]> {
+    return request('/roles');
+  },
+  create(payload: { name: string; processable_stages: Stage[] }): Promise<RoleDefinition> {
+    return request('/roles', { method: 'POST', body: JSON.stringify(payload) });
   },
 };
 

@@ -1,22 +1,30 @@
-export type Role = 'Admin' | 'Físico Médico' | 'Tecnólogo Médico' | 'Enfermero/a';
+export type Role = string;
 
 export type Stage =
-  | 'Dosimetría'
-  | 'Física Médica'
-  | 'Impresión'
-  | 'Enfermería'
-  | 'Citación'
+  | 'Ingreso'
+  | 'Simulaci\u00f3n'
+  | 'Dosimetr\u00eda'
+  | 'F\u00edsica M\u00e9dica'
+  | 'Impresi\u00f3n'
+  | 'Enfermer\u00eda'
+  | 'Citaci\u00f3n'
+  | 'Inicio/Termino de tratamiento'
   | 'Finalizado';
 
 export type Purpose =
-  | 'Medición'
-  | 'Física Médica'
-  | 'Planificación'
-  | 'Replanificación'
+  | 'Simulaci\u00f3n'
+  | 'Dosimetr\u00eda'
+  | 'Medici\u00f3n'
+  | 'F\u00edsica M\u00e9dica'
+  | 'Planificaci\u00f3n'
+  | 'Replanificaci\u00f3n'
   | 'Calcular Dosis'
   | 'Imprimir'
-  | 'Devolver a Física Médica'
-  | 'Recepción';
+  | 'Devolver a F\u00edsica M\u00e9dica'
+  | 'Citar'
+  | 'Recepci\u00f3n'
+  | 'Iniciar/terminar tratamiento'
+  | 'Fallecido / no disponible';
 
 export interface User {
   id: number;
@@ -26,6 +34,14 @@ export interface User {
   is_active: boolean;
   created_at: string;
   processable_stages: Stage[];
+}
+
+export interface RoleDefinition {
+  id: number;
+  name: Role;
+  processable_stages: Stage[];
+  is_system: boolean;
+  created_at: string;
 }
 
 export interface Patient {
