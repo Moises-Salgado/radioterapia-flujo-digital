@@ -44,6 +44,7 @@ class Purpose:
     RECEPCION = "Recepción"
     INICIAR_TERMINAR_TRATAMIENTO = "Iniciar/terminar tratamiento"
     FALLECIDO_NO_DISPONIBLE = "Fallecido / no disponible"
+    RESIMULAR = "Resimular"
 
     ALL = [
         SIMULACION,
@@ -59,6 +60,7 @@ class Purpose:
         RECEPCION,
         INICIAR_TERMINAR_TRATAMIENTO,
         FALLECIDO_NO_DISPONIBLE,
+        RESIMULAR,
     ]
 
 

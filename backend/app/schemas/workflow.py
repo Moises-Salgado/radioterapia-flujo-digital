@@ -10,6 +10,11 @@ class ProcessStageRequest(BaseModel):
     notes: str | None = Field(default=None, max_length=1000)
 
 
+class ResimulatePatientRequest(BaseModel):
+    password: str = Field(min_length=1, max_length=200)
+    notes: str | None = Field(default=None, max_length=1000)
+
+
 class ProcessStageResponse(BaseModel):
     patient: PatientRead
     log: WorkflowLogRead

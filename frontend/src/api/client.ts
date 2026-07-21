@@ -1,5 +1,6 @@
 import type {
   CompletedPatient,
+  Observation,
   Patient,
   Purpose,
   RoleDefinition,
@@ -10,7 +11,7 @@ import type {
   WorkflowLog,
 } from '../types/domain';
 
-const API_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:8012/api';
+const API_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:8000/api';
 const TOKEN_KEY = 'rt_access_token';
 
 export function getToken(): string | null {
@@ -110,7 +111,7 @@ export const patientsApi = {
     const queryString = params.toString();
     return request(`/patients${queryString ? '?' + queryString : ''}`);
   },
-  create(payload: Omit<Patient, 'id' | 'created_at' | 'current_stage' | 'root_patient_id' | 'ficha_number' | 'ficha_label' | 'ficha_count' | 'is_priority' | 'created_by_user_id' | 'latest_purpose' | 'logs_count'>): Promise<Patient> {
+  create(payload: Omit<Patient, 'id' | 'created_at' | 'current_stage' | 'root_patient_id' | 'ficha_number' | 'ficha_label' | 'ficha_count' | 'is_priority' | 'created_by_user_id' | 'latest_purpose' | 'logs_count' | 'observation_count'>): Promise<Patient> {
     return request('/patients', { method: 'POST', body: JSON.stringify(payload) });
   },
   createFicha(id: number, currentStage: Stage): Promise<Patient> {
@@ -127,6 +128,13 @@ export const patientsApi = {
   },
   logs(id: number): Promise<WorkflowLog[]> {
     return request(`/patients/${id}/logs`);
+  },
+  observations(q?: string, stage?: Stage): Promise<Observation[]> {
+    const params = new URLSearchParams();
+    if (q) params.append('q', q);
+    if (stage) params.append('stage', stage);
+    const queryString = params.toString();
+    return request(`/patients/observations${queryString ? '?' + queryString : ''}`);
   },
   uploadTxt(file: File): Promise<UploadPatientsResponse> {
     const formData = new FormData();
@@ -149,6 +157,12 @@ export const workflowApi = {
     return request(`/workflow/patients/${id}/process`, {
       method: 'POST',
       body: JSON.stringify({ purpose, notes }),
+    });
+  },
+  resimulatePatient(id: number, password: string, notes?: string): Promise<{ patient: Patient; log: WorkflowLog }> {
+    return request(`/workflow/patients/${id}/resimulate`, {
+      method: 'POST',
+      body: JSON.stringify({ password, notes }),
     });
   },
 };

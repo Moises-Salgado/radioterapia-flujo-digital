@@ -102,6 +102,10 @@ export function Layout() {
             <NavIcon type="patients" />
             Pacientes
           </NavLink>
+          <NavLink to="/observations">
+            <NavIcon type="observations" />
+            Observaciones
+          </NavLink>
           <NavLink to="/completed">
             <NavIcon type="completed" />
             Finalizados
@@ -211,7 +215,7 @@ export function Layout() {
   );
 }
 
-function NavIcon({ type }: { type: 'dashboard' | 'patients' | 'completed' | 'users' }) {
+function NavIcon({ type }: { type: 'dashboard' | 'patients' | 'observations' | 'completed' | 'users' }) {
   const paths = {
     dashboard: (
       <>
@@ -234,6 +238,13 @@ function NavIcon({ type }: { type: 'dashboard' | 'patients' | 'completed' | 'use
         <path d="M9 11l2 2 4-5" />
         <path d="M20 11.5V18a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h8" />
         <path d="M15 4h5v5" />
+      </>
+    ),
+    observations: (
+      <>
+        <path d="M6 4h12a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H8l-4 3V6a2 2 0 0 1 2-2z" />
+        <path d="M8 9h8" />
+        <path d="M8 13h5" />
       </>
     ),
     users: (

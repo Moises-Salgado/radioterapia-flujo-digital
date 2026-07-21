@@ -26,4 +26,5 @@ PurposeName = Literal[
     "Recepci\u00f3n",
     "Iniciar/terminar tratamiento",
     "Fallecido / no disponible",
+    "Resimular",
 ]

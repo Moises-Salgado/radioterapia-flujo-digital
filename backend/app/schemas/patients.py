@@ -64,6 +64,7 @@ class PatientRead(PatientBase):
     created_at: datetime
     latest_purpose: PurposeName | None = None
     logs_count: int = 0
+    observation_count: int = 0
 
     model_config = {"from_attributes": True}
 
@@ -79,6 +80,22 @@ class WorkflowLogRead(BaseModel):
     notes: str | None = None
 
     model_config = {"from_attributes": True}
+
+
+class ObservationRead(BaseModel):
+    id: int
+    patient_id: int
+    patient_name: str
+    patient_rut: str
+    ficha_number: int
+    ficha_label: str
+    current_stage: StageName
+    processed_stage: StageName
+    user_id: int
+    user: UserRead | None = None
+    purpose: PurposeName
+    fecha_hora: datetime
+    notes: str
 
 
 class UploadPatientsResponse(BaseModel):

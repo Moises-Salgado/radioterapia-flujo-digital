@@ -3,7 +3,7 @@ import { patientsApi, workflowApi } from '../api/client';
 import { ProcessModal } from '../components/ProcessModal';
 import { StageCard } from '../components/StageCard';
 import { useAuth } from '../context/AuthContext';
-import type { Patient, Purpose, Stage, StageSummaryItem } from '../types/domain';
+import type { Patient, Purpose, Stage, StageSummaryItem, WorkflowLog } from '../types/domain';
 
 const ALL_STAGES: Stage[] = ['Ingreso', 'Simulación', 'Dosimetría', 'Física Médica', 'Impresión', 'Enfermería', 'Citación', 'Inicio/Termino de tratamiento'];
 const PURPOSES_BY_STAGE: Record<Exclude<Stage, 'Finalizado'>, Purpose[]> = {
@@ -55,6 +55,16 @@ export function DashboardPage() {
   const [message, setMessage] = useState('');
   const [creatingFicha, setCreatingFicha] = useState(false);
   const [fichaPatientToCreate, setFichaPatientToCreate] = useState<Patient | null>(null);
+  const [selectedPatientLogs, setSelectedPatientLogs] = useState<WorkflowLog[]>([]);
+  const [loadingPatientLogs, setLoadingPatientLogs] = useState(false);
+  const [observationsModalPatient, setObservationsModalPatient] = useState<Patient | null>(null);
+  const [observationsModalLogs, setObservationsModalLogs] = useState<WorkflowLog[]>([]);
+  const [loadingObservationsModal, setLoadingObservationsModal] = useState(false);
+  const [resimulatePatient, setResimulatePatient] = useState<Patient | null>(null);
+  const [resimulateNotes, setResimulateNotes] = useState('');
+  const [resimulatePassword, setResimulatePassword] = useState('');
+  const [resimulateError, setResimulateError] = useState('');
+  const [resimulating, setResimulating] = useState(false);
 
   const availableStages = user?.processable_stages ?? [];
   const isStageAccessible = (stage: Stage) => {
@@ -76,6 +86,10 @@ export function DashboardPage() {
     () => patients.find((patient) => patient.id === selectedPatientId) ?? patients[0] ?? null,
     [patients, selectedPatientId],
   );
+  const observationLogs = useMemo(
+    () => selectedPatientLogs.filter((log) => Boolean(log.notes?.trim())),
+    [selectedPatientLogs],
+  );
 
   const loadData = async (search = query, stage = selectedStage) => {
     setLoading(true);
@@ -86,7 +100,11 @@ export function DashboardPage() {
       ]);
       setPatients(patientsResponse);
       setSummary(summaryResponse.stages);
-      if (!selectedPatientId && patientsResponse.length > 0) setSelectedPatientId(patientsResponse[0].id);
+      setSelectedPatientId((currentId) => {
+        if (patientsResponse.length === 0) return null;
+        if (currentId && patientsResponse.some((patient) => patient.id === currentId)) return currentId;
+        return patientsResponse[0].id;
+      });
       setSelectedPurposeByPatient({});
       setPriorityByPatient(
         Object.fromEntries(patientsResponse.filter((patient) => patient.is_priority).map((patient) => [patient.id, true])),
@@ -113,18 +131,64 @@ export function DashboardPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [query]);
 
+  useEffect(() => {
+    let cancelled = false;
+
+    if (!selectedPatientId) {
+      setSelectedPatientLogs([]);
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    setLoadingPatientLogs(true);
+    patientsApi.logs(selectedPatientId)
+      .then((logs) => {
+        if (!cancelled) setSelectedPatientLogs(logs);
+      })
+      .catch(() => {
+        if (!cancelled) setSelectedPatientLogs([]);
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingPatientLogs(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedPatientId]);
+
   const getStageCount = (stage: Stage) => summary.find((item) => item.stage === stage)?.count ?? 0;
+  const formatLogDateTime = (value: string) =>
+    new Date(value).toLocaleString('es-CL', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
   const activePatientsCount = ALL_STAGES.reduce((total, stage) => total + getStageCount(stage), 0);
   const accessiblePatientsCount = accessibleStages.reduce((total, stage) => total + getStageCount(stage), 0);
   const finalizadosCount = getStageCount('Finalizado');
   const fichaCreationStages: Stage[] = ['Dosimetría', 'Física Médica'];
   const showPriorityColumn = selectedStage === 'Dosimetría';
+  const canShowResimulateColumn = Boolean(
+    selectedStage && ALL_STAGES.indexOf(selectedStage) > ALL_STAGES.indexOf('Simulación'),
+  );
 
   const canProcess = (patient: Patient | null): boolean => {
     if (!patient || !user || patient.current_stage === 'Finalizado') return false;
     if (user.role === 'Admin') return true;
     return availableStages.includes(patient.current_stage);
   };
+  const canResimulate = (patient: Patient | null): boolean => (
+    Boolean(
+      patient
+      && patient.current_stage !== 'Finalizado'
+      && ALL_STAGES.indexOf(patient.current_stage) > ALL_STAGES.indexOf('Simulación')
+      && canProcess(patient),
+    )
+  );
 
   const validSelectedPatientIds = useMemo(
     () => Object.keys(selectedPurposeByPatient)
@@ -149,7 +213,7 @@ export function DashboardPage() {
     return `Tu rol (${user?.role}) no puede procesar ${patient.current_stage}`;
   };
 
-  const handleConfirmProcess = async (notes?: string) => {
+  const handleConfirmProcess = async (notesByPatient: Record<number, string | undefined>) => {
     if (modalPatientIds.length === 0) return;
     setMessage('');
     const processedStage = patients.find((patient) => patient.id === modalPatientIds[0])?.current_stage ?? selectedStage;
@@ -159,7 +223,7 @@ export function DashboardPage() {
       const priorityIdsToSave = prioritySelectedPatientIds;
       await Promise.all(priorityIdsToSave.map((id) => patientsApi.updatePriority(id, true)));
       await Promise.all(
-        modalPatientIds.map((id) => workflowApi.processPatient(id, selectedPurposeByPatient[id], notes)),
+        modalPatientIds.map((id) => workflowApi.processPatient(id, selectedPurposeByPatient[id], notesByPatient[id])),
       );
       setModalPatientIds([]);
       await loadData(query, selectedStage);
@@ -198,6 +262,58 @@ export function DashboardPage() {
       setMessage(err instanceof Error ? err.message : 'No se pudo crear la ficha');
     } finally {
       setCreatingFicha(false);
+    }
+  };
+
+  const handleOpenObservations = async (patient: Patient) => {
+    setSelectedPatientId(patient.id);
+    setObservationsModalPatient(patient);
+    setLoadingObservationsModal(true);
+    try {
+      const logs = await patientsApi.logs(patient.id);
+      setObservationsModalLogs(logs.filter((log) => Boolean(log.notes?.trim())));
+    } catch {
+      setObservationsModalLogs([]);
+    } finally {
+      setLoadingObservationsModal(false);
+    }
+  };
+
+  const openResimulateModal = (patient: Patient) => {
+    setResimulatePatient(patient);
+    setResimulateNotes('');
+    setResimulatePassword('');
+    setResimulateError('');
+  };
+
+  const handleResimulate = async () => {
+    if (!resimulatePatient || !resimulatePassword.trim()) return;
+    setResimulating(true);
+    setMessage('');
+    setResimulateError('');
+    try {
+      await workflowApi.resimulatePatient(
+        resimulatePatient.id,
+        resimulatePassword,
+        resimulateNotes.trim() || undefined,
+      );
+      const patientName = resimulatePatient.full_name;
+      const fichaLabel = resimulatePatient.ficha_label;
+      setResimulatePatient(null);
+      setResimulateNotes('');
+      setResimulatePassword('');
+      setResimulateError('');
+      await loadData(query, selectedStage);
+      setMessage(`${patientName} (${fichaLabel}) fue enviado a Simulación.`);
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'No se pudo enviar a resimulación';
+      if (errorMessage.toLowerCase().includes('contraseña') || errorMessage.toLowerCase().includes('clave')) {
+        setResimulateError('Clave incorrecta');
+      } else {
+        setResimulateError(errorMessage);
+      }
+    } finally {
+      setResimulating(false);
     }
   };
 
@@ -273,6 +389,34 @@ export function DashboardPage() {
                   </button>
                 </div>
               )}
+              <div className="patient-observations">
+                <div className="patient-observations-header">
+                  <strong>Observaciones</strong>
+                  {selectedPatient.observation_count > 0 && (
+                    <span>{selectedPatient.observation_count}</span>
+                  )}
+                </div>
+                {loadingPatientLogs ? (
+                  <p className="muted-text">Cargando observaciones...</p>
+                ) : observationLogs.length > 0 ? (
+                  <div className="observation-list">
+                    {observationLogs.map((log) => (
+                      <article key={log.id} className="observation-item">
+                        <div className="observation-meta">
+                          <span>{log.processed_stage}</span>
+                          <span>{formatLogDateTime(log.fecha_hora)}</span>
+                        </div>
+                        <p>{log.notes}</p>
+                        <small>
+                          {log.user?.full_name ?? 'Usuario no registrado'} - {log.purpose}
+                        </small>
+                      </article>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="muted-text">Sin observaciones registradas.</p>
+                )}
+              </div>
             </div>
           ) : (
             <p className="muted-text">No hay pacientes para mostrar.</p>
@@ -308,6 +452,7 @@ export function DashboardPage() {
                   {visiblePurposes.map((purpose) => (
                     <th key={purpose} className="purpose-header">{purpose}</th>
                   ))}
+                  {canShowResimulateColumn && <th className="purpose-header">Resimular</th>}
                 </tr>
               </thead>
               <tbody>
@@ -327,6 +472,19 @@ export function DashboardPage() {
                               {patient.full_name}
                             </strong>
                             <span title={patient.rut}>{patient.rut}</span>
+                            {patient.observation_count > 0 && (
+                              <button
+                                type="button"
+                                className="observation-badge observation-badge-button"
+                                onClick={(event) => {
+                                  event.stopPropagation();
+                                  handleOpenObservations(patient);
+                                }}
+                                title={`Ver ${patient.observation_count} observación${patient.observation_count === 1 ? '' : 'es'} de ${patient.ficha_label}`}
+                              >
+                                Obs. {patient.observation_count}
+                              </button>
+                            )}
                           </div>
                         </div>
                       </td>
@@ -377,12 +535,30 @@ export function DashboardPage() {
                           </button>
                         </td>
                       ))}
+                      {canShowResimulateColumn && (
+                        <td className="center-cell purpose-cell">
+                          <button
+                            type="button"
+                            className={`resimulate-row-button ${!canResimulate(patient) ? 'purpose-dot-disabled' : ''}`}
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              if (!canResimulate(patient)) return;
+                              openResimulateModal(patient);
+                            }}
+                            disabled={!canResimulate(patient)}
+                            title={`Enviar ${patient.ficha_label} a Simulación`}
+                            aria-label={`Resimular ${patient.full_name} ${patient.ficha_label}`}
+                          >
+                            !
+                          </button>
+                        </td>
+                      )}
                     </tr>
                   );
                 })}
                 {patients.length === 0 && (
                   <tr>
-                    <td colSpan={visiblePurposes.length + 2 + (showPriorityColumn ? 1 : 0)} className="empty-cell">No se encontraron pacientes.</td>
+                    <td colSpan={visiblePurposes.length + 2 + (showPriorityColumn ? 1 : 0) + (canShowResimulateColumn ? 1 : 0)} className="empty-cell">No se encontraron pacientes.</td>
                   </tr>
                 )}
               </tbody>
@@ -413,6 +589,123 @@ export function DashboardPage() {
           onClose={() => setModalPatientIds([])}
           onConfirm={handleConfirmProcess}
         />
+      )}
+
+      {resimulatePatient && (
+        <div className="modal-backdrop observations-modal-backdrop" role="dialog" aria-modal="true">
+          <div className="modal-card resimulate-modal-card">
+            <div className="modal-header">
+              <div className="resimulate-modal-heading">
+                <span className="resimulate-warning-icon" aria-hidden="true">!</span>
+                <div>
+                  <strong>Confirmar resimulación</strong>
+                  <span>{resimulatePatient.full_name} - {resimulatePatient.rut} - {resimulatePatient.ficha_label}</span>
+                </div>
+              </div>
+              <button
+                className="icon-button modal-close-button"
+                type="button"
+                onClick={() => setResimulatePatient(null)}
+                disabled={resimulating}
+                aria-label="Cerrar resimulación"
+              >
+                x
+              </button>
+            </div>
+
+            <div className="modal-body">
+              <div className="resimulate-warning-panel">
+                Esta acción enviará la ficha desde <strong>{resimulatePatient.current_stage}</strong> a <strong>Simulación</strong> y quedará registrada en el historial.
+              </div>
+
+              <label className="field-label" htmlFor="resimulate-notes">Observación</label>
+              <textarea
+                id="resimulate-notes"
+                rows={4}
+                placeholder="Opcional, explique el motivo de la resimulación"
+                value={resimulateNotes}
+                onChange={(event) => setResimulateNotes(event.target.value)}
+                disabled={resimulating}
+              />
+
+              <label className="field-label" htmlFor="resimulate-password">Clave del usuario en sesión</label>
+              <input
+                id="resimulate-password"
+                type="password"
+                placeholder="Escriba su clave para confirmar"
+                value={resimulatePassword}
+                onChange={(event) => {
+                  setResimulatePassword(event.target.value);
+                  if (resimulateError) setResimulateError('');
+                }}
+                disabled={resimulating}
+                aria-invalid={Boolean(resimulateError)}
+              />
+              {resimulateError && <div className="resimulate-error">{resimulateError}</div>}
+            </div>
+
+            <div className="modal-actions">
+              <button
+                className="secondary-button"
+                type="button"
+                onClick={() => setResimulatePatient(null)}
+                disabled={resimulating}
+              >
+                Cancelar
+              </button>
+              <button
+                className="danger-button"
+                type="button"
+                onClick={handleResimulate}
+                disabled={resimulating || !resimulatePassword.trim()}
+              >
+                {resimulating ? 'Confirmando...' : 'Confirmar resimulación'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {observationsModalPatient && (
+        <div className="modal-backdrop observations-modal-backdrop" role="dialog" aria-modal="true">
+          <div className="modal-card observations-modal-card">
+            <div className="modal-header">
+              <div>
+                <strong>Observaciones de ficha</strong>
+                <span>{observationsModalPatient.full_name} - {observationsModalPatient.rut} - {observationsModalPatient.ficha_label}</span>
+              </div>
+              <button
+                className="icon-button modal-close-button"
+                type="button"
+                onClick={() => setObservationsModalPatient(null)}
+                aria-label="Cerrar observaciones"
+              >
+                x
+              </button>
+            </div>
+
+            <div className="modal-body">
+              {loadingObservationsModal ? (
+                <p className="muted-text">Cargando observaciones...</p>
+              ) : observationsModalLogs.length > 0 ? (
+                <div className="observations-modal-list">
+                  {observationsModalLogs.map((log) => (
+                    <article key={log.id} className="observation-item observation-item-modal">
+                      <div className="observation-meta">
+                        <span>{log.processed_stage}</span>
+                        <span>{formatLogDateTime(log.fecha_hora)}</span>
+                      </div>
+                      <p>{log.notes}</p>
+                      <small>{log.user?.full_name ?? 'Usuario no registrado'} - {log.purpose}</small>
+                    </article>
+                  ))}
+                </div>
+              ) : (
+                <p className="muted-text">Esta ficha no tiene observaciones registradas.</p>
+              )}
+            </div>
+          </div>
+        </div>
       )}
 
       {fichaPatientToCreate && (

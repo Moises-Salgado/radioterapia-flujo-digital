@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session, joinedload
 from app.api.deps import get_current_user, require_admin
 from app.core.database import get_db
 from app.models.entities import Patient, Stage, User, WorkflowLog
-from app.schemas.patients import PatientCreate, PatientFichaCreate, PatientPriorityUpdate, PatientRead, UploadPatientsResponse, WorkflowLogRead
+from app.schemas.patients import ObservationRead, PatientCreate, PatientFichaCreate, PatientPriorityUpdate, PatientRead, UploadPatientsResponse, WorkflowLogRead
 from app.services.patient_importer import import_patients_from_text
 from app.services.workflow import get_processable_stages
 
@@ -84,6 +84,15 @@ def patient_to_read(db: Session, patient: Patient) -> PatientRead:
         .limit(1)
     )
     logs_count = db.scalar(select(func.count()).select_from(WorkflowLog).where(WorkflowLog.patient_id == patient.id)) or 0
+    observation_count = db.scalar(
+        select(func.count())
+        .select_from(WorkflowLog)
+        .where(
+            WorkflowLog.patient_id == patient.id,
+            WorkflowLog.notes.is_not(None),
+            func.length(func.trim(WorkflowLog.notes)) > 0,
+        )
+    ) or 0
     ficha_count = db.scalar(
         select(func.count()).select_from(Patient).where(
             or_(Patient.root_patient_id == root_id, Patient.id == root_id)
@@ -96,6 +105,7 @@ def patient_to_read(db: Session, patient: Patient) -> PatientRead:
             "ficha_count": ficha_count,
             "latest_purpose": latest_log.purpose if latest_log else None,
             "logs_count": logs_count,
+            "observation_count": observation_count,
         }
     )
 
@@ -131,6 +141,57 @@ def list_patients(
         ]
 
     return [patient_to_read(db, patient) for patient in patients]
+
+
+@router.get("/observations", response_model=list[ObservationRead])
+def list_observations(
+    q: str | None = Query(default=None, description="Buscar por paciente, RUT o ficha"),
+    stage: str | None = Query(default=None, description="Filtrar por etapa donde se registró"),
+    db: Session = Depends(get_db),
+    _: User = Depends(get_current_user),
+):
+    stmt = (
+        select(WorkflowLog)
+        .options(joinedload(WorkflowLog.patient), joinedload(WorkflowLog.user))
+        .where(
+            WorkflowLog.notes.is_not(None),
+            func.length(func.trim(WorkflowLog.notes)) > 0,
+        )
+        .order_by(WorkflowLog.fecha_hora.desc())
+    )
+    if stage:
+        stmt = stmt.where(WorkflowLog.processed_stage == stage)
+
+    logs = db.scalars(stmt).all()
+
+    if q:
+        normalized_query = _normalize_search_text(q)
+        rut_query = _normalize_query_rut(q)
+        logs = [
+            log for log in logs
+            if normalized_query in _normalize_search_text(log.patient.full_name)
+            or (rut_query and rut_query in _normalize_rut_text(log.patient.rut))
+            or normalized_query in f"f{log.patient.ficha_number or 1}"
+        ]
+
+    return [
+        ObservationRead(
+            id=log.id,
+            patient_id=log.patient_id,
+            patient_name=log.patient.full_name,
+            patient_rut=log.patient.rut,
+            ficha_number=log.patient.ficha_number or 1,
+            ficha_label=f"F{log.patient.ficha_number or 1}",
+            current_stage=log.patient.current_stage,
+            processed_stage=log.processed_stage,
+            user_id=log.user_id,
+            user=log.user,
+            purpose=log.purpose,
+            fecha_hora=log.fecha_hora,
+            notes=log.notes or "",
+        )
+        for log in logs
+    ]
 
 
 @router.get("/{patient_id}", response_model=PatientRead)

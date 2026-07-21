@@ -5,12 +5,14 @@ from sqlalchemy.orm import Session, joinedload
 from app.api.deps import get_current_user, require_admin
 from app.api.patients import patient_to_read
 from app.core.database import get_db
-from app.models.entities import Patient, Stage, User, WorkflowLog
+from app.core.security import verify_password
+from app.models.entities import Patient, Purpose, Stage, User, WorkflowLog
 from app.schemas.patients import PatientRead
 from app.schemas.workflow import (
     CompletedPatientItem,
     ProcessStageRequest,
     ProcessStageResponse,
+    ResimulatePatientRequest,
     StageSummaryItem,
     StageSummaryResponse,
 )
@@ -61,6 +63,58 @@ def process_patient_stage(
         notes=payload.notes,
     )
     patient.current_stage = get_next_stage(stage_to_process, payload.purpose)
+    db.add(log)
+    db.commit()
+    db.refresh(patient)
+    db.refresh(log)
+
+    log_with_user = db.scalar(
+        select(WorkflowLog).options(joinedload(WorkflowLog.user)).where(WorkflowLog.id == log.id)
+    )
+    return ProcessStageResponse(patient=patient_to_read(db, patient), log=log_with_user)
+
+
+@router.post("/patients/{patient_id}/resimulate", response_model=ProcessStageResponse)
+def resimulate_patient(
+    patient_id: int,
+    payload: ResimulatePatientRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    patient = db.get(Patient, patient_id)
+    if not patient:
+        raise HTTPException(status_code=404, detail="Paciente no encontrado")
+
+    if patient.current_stage == Stage.FINALIZADO:
+        raise HTTPException(status_code=400, detail="No se puede resimular una ficha finalizada")
+
+    try:
+        current_stage_index = Stage.ORDER.index(patient.current_stage)
+        simulation_index = Stage.ORDER.index(Stage.SIMULACION)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Etapa actual inválida")
+
+    if current_stage_index <= simulation_index:
+        raise HTTPException(status_code=400, detail="Solo se puede resimular desde etapas posteriores a Simulación")
+
+    stage_to_process = patient.current_stage
+    if not can_process_stage(current_user.role, stage_to_process, db):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=f"El rol {current_user.role} no puede resimular desde la etapa {stage_to_process}",
+        )
+
+    if not verify_password(payload.password, current_user.password_hash):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Contraseña incorrecta")
+
+    log = WorkflowLog(
+        patient_id=patient.id,
+        processed_stage=stage_to_process,
+        user_id=current_user.id,
+        purpose=Purpose.RESIMULAR,
+        notes=payload.notes,
+    )
+    patient.current_stage = Stage.SIMULACION
     db.add(log)
     db.commit()
     db.refresh(patient)

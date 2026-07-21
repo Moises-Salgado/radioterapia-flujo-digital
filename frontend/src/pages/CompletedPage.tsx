@@ -3,6 +3,8 @@ import { workflowApi } from '../api/client';
 import { useAuth } from '../context/AuthContext';
 import type { CompletedPatient } from '../types/domain';
 
+const unavailablePurpose = 'Fallecido / no disponible';
+
 export function CompletedPage() {
   const { user } = useAuth();
   const [completedPatients, setCompletedPatients] = useState<CompletedPatient[]>([]);
@@ -84,43 +86,59 @@ export function CompletedPage() {
                 <th>RUT</th>
                 <th>Teléfono</th>
                 <th>Finalizado</th>
+                <th>Estado</th>
                 {canReopen && <th>Acciones</th>}
               </tr>
             </thead>
             <tbody>
               {completedPatients.length === 0 ? (
                 <tr>
-                  <td colSpan={canReopen ? 5 : 4} className="empty-cell">
+                  <td colSpan={canReopen ? 6 : 5} className="empty-cell">
                     No hay pacientes finalizados aún.
                   </td>
                 </tr>
               ) : (
-                completedPatients.map((item) => (
-                  <tr key={item.patient.id} className={item.patient.is_priority ? 'priority-row' : ''}>
-                    <td>
-                      <div className="patient-cell">
-                        <div>
-                          <strong>{item.patient.full_name}</strong>
-                          <span>{item.patient.current_stage}</span>
-                        </div>
-                      </div>
-                    </td>
-                    <td>{item.patient.rut}</td>
-                    <td>{item.patient.phone ?? '-'}</td>
-                    <td>{formatDateTime(item.finished_at)}</td>
-                    {canReopen && (
+                completedPatients.map((item) => {
+                  const isUnavailable = item.patient.latest_purpose === unavailablePurpose;
+                  const rowClass = [
+                    item.patient.is_priority ? 'priority-row' : '',
+                    isUnavailable ? 'completed-unavailable-row' : '',
+                  ]
+                    .filter(Boolean)
+                    .join(' ');
+
+                  return (
+                    <tr key={item.patient.id} className={rowClass}>
                       <td>
-                        <button
-                          className="secondary-button small"
-                          onClick={() => handleReopen(item)}
-                          disabled={reopeningId === item.patient.id}
-                        >
-                          {reopeningId === item.patient.id ? 'Reabriendo...' : 'Reabrir'}
-                        </button>
+                        <div className="patient-cell">
+                          <div>
+                            <strong>{item.patient.full_name}</strong>
+                            <span>{item.patient.current_stage}</span>
+                          </div>
+                        </div>
                       </td>
-                    )}
-                  </tr>
-                ))
+                      <td>{item.patient.rut}</td>
+                      <td>{item.patient.phone ?? '-'}</td>
+                      <td>{formatDateTime(item.finished_at)}</td>
+                      <td>
+                        <span className={isUnavailable ? 'completed-unavailable-pill' : 'completed-ok-pill'}>
+                          {isUnavailable ? unavailablePurpose : 'Finalizado'}
+                        </span>
+                      </td>
+                      {canReopen && (
+                        <td>
+                          <button
+                            className="secondary-button small"
+                            onClick={() => handleReopen(item)}
+                            disabled={reopeningId === item.patient.id}
+                          >
+                            {reopeningId === item.patient.id ? 'Reabriendo...' : 'Reabrir'}
+                          </button>
+                        </td>
+                      )}
+                    </tr>
+                  );
+                })
               )}
             </tbody>
           </table>

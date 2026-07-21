@@ -24,7 +24,8 @@ export type Purpose =
   | 'Citar'
   | 'Recepci\u00f3n'
   | 'Iniciar/terminar tratamiento'
-  | 'Fallecido / no disponible';
+  | 'Fallecido / no disponible'
+  | 'Resimular';
 
 export interface User {
   id: number;
@@ -65,6 +66,7 @@ export interface Patient {
   created_at: string;
   latest_purpose?: Purpose | null;
   logs_count: number;
+  observation_count: number;
 }
 
 export interface WorkflowLog {
@@ -76,6 +78,22 @@ export interface WorkflowLog {
   purpose: Purpose;
   fecha_hora: string;
   notes?: string | null;
+}
+
+export interface Observation {
+  id: number;
+  patient_id: number;
+  patient_name: string;
+  patient_rut: string;
+  ficha_number: number;
+  ficha_label: string;
+  current_stage: Stage;
+  processed_stage: Stage;
+  user_id: number;
+  user?: User | null;
+  purpose: Purpose;
+  fecha_hora: string;
+  notes: string;
 }
 
 export interface StageSummaryItem {
