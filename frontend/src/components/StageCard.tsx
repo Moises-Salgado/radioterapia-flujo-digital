@@ -1,20 +1,14 @@
 import type { Stage } from '../types/domain';
 
-const stageIcons: Record<Stage, string> = {
-  Dosimetría: '✓',
-  'Física Médica': '⚛',
-  Impresión: '▣',
-  Enfermería: '✚',
-  Citación: '▦',
-  Finalizado: '★',
-};
-
 const stageClassByStage: Record<Stage, string> = {
-  Dosimetría: 'dosimetria',
-  'Física Médica': 'fisica',
-  Impresión: 'impresion',
-  Enfermería: 'enfermeria',
-  Citación: 'citacion',
+  Ingreso: 'ingreso',
+  Simulaci\u00f3n: 'simulacion',
+  Dosimetr\u00eda: 'dosimetria',
+  'F\u00edsica M\u00e9dica': 'fisica',
+  Impresi\u00f3n: 'impresion',
+  Enfermer\u00eda: 'enfermeria',
+  Citaci\u00f3n: 'citacion',
+  'Inicio/Termino de tratamiento': 'tratamiento',
   Finalizado: 'finalizado',
 };
 
@@ -41,9 +35,10 @@ export function StageCard({
       disabled={disabled}
       aria-pressed={active}
     >
-      <div className="stage-number">{index}</div>
-      <div className="stage-icon">{stageIcons[stage]}</div>
-      <div>
+      <div className="stage-card-top">
+        <div className="stage-number">Etapa {index}</div>
+      </div>
+      <div className="stage-card-copy">
         <strong>{stage}</strong>
         <span>{count} paciente{count === 1 ? '' : 's'}</span>
       </div>

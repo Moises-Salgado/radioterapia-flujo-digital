@@ -44,13 +44,27 @@ class PatientCreate(PatientBase):
     pass
 
 
+class PatientFichaCreate(BaseModel):
+    current_stage: StageName
+
+
+class PatientPriorityUpdate(BaseModel):
+    is_priority: bool = True
+
+
 class PatientRead(PatientBase):
     id: int
     current_stage: StageName
+    root_patient_id: int | None = None
+    ficha_number: int = 1
+    ficha_label: str = "F1"
+    ficha_count: int = 1
+    is_priority: bool = False
     created_by_user_id: int | None
     created_at: datetime
     latest_purpose: PurposeName | None = None
     logs_count: int = 0
+    observation_count: int = 0
 
     model_config = {"from_attributes": True}
 
@@ -66,6 +80,22 @@ class WorkflowLogRead(BaseModel):
     notes: str | None = None
 
     model_config = {"from_attributes": True}
+
+
+class ObservationRead(BaseModel):
+    id: int
+    patient_id: int
+    patient_name: str
+    patient_rut: str
+    ficha_number: int
+    ficha_label: str
+    current_stage: StageName
+    processed_stage: StageName
+    user_id: int
+    user: UserRead | None = None
+    purpose: PurposeName
+    fecha_hora: datetime
+    notes: str
 
 
 class UploadPatientsResponse(BaseModel):

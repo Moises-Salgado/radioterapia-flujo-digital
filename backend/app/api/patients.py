@@ -4,10 +4,10 @@ from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, 
 from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session, joinedload
 
-from app.api.deps import get_current_user
+from app.api.deps import get_current_user, require_admin
 from app.core.database import get_db
-from app.models.entities import Patient, User, WorkflowLog
-from app.schemas.patients import PatientCreate, PatientRead, UploadPatientsResponse, WorkflowLogRead
+from app.models.entities import Patient, Stage, User, WorkflowLog
+from app.schemas.patients import ObservationRead, PatientCreate, PatientFichaCreate, PatientPriorityUpdate, PatientRead, UploadPatientsResponse, WorkflowLogRead
 from app.services.patient_importer import import_patients_from_text
 from app.services.workflow import get_processable_stages
 
@@ -76,6 +76,7 @@ def _normalize_search_text(value: str) -> str:
 
 
 def patient_to_read(db: Session, patient: Patient) -> PatientRead:
+    root_id = patient.root_patient_id or patient.id
     latest_log = db.scalar(
         select(WorkflowLog)
         .where(WorkflowLog.patient_id == patient.id)
@@ -83,8 +84,29 @@ def patient_to_read(db: Session, patient: Patient) -> PatientRead:
         .limit(1)
     )
     logs_count = db.scalar(select(func.count()).select_from(WorkflowLog).where(WorkflowLog.patient_id == patient.id)) or 0
+    observation_count = db.scalar(
+        select(func.count())
+        .select_from(WorkflowLog)
+        .where(
+            WorkflowLog.patient_id == patient.id,
+            WorkflowLog.notes.is_not(None),
+            func.length(func.trim(WorkflowLog.notes)) > 0,
+        )
+    ) or 0
+    ficha_count = db.scalar(
+        select(func.count()).select_from(Patient).where(
+            or_(Patient.root_patient_id == root_id, Patient.id == root_id)
+        )
+    ) or 1
     return PatientRead.model_validate(patient).model_copy(
-        update={"latest_purpose": latest_log.purpose if latest_log else None, "logs_count": logs_count}
+        update={
+            "root_patient_id": root_id,
+            "ficha_label": f"F{patient.ficha_number or 1}",
+            "ficha_count": ficha_count,
+            "latest_purpose": latest_log.purpose if latest_log else None,
+            "logs_count": logs_count,
+            "observation_count": observation_count,
+        }
     )
 
 
@@ -101,11 +123,12 @@ def list_patients(
     if stage:
         stmt = stmt.where(Patient.current_stage == stage)
     elif not include_all:
-        processable_stages = get_processable_stages(current_user.role)
+        processable_stages = get_processable_stages(current_user.role, db)
         if processable_stages:
             stmt = stmt.where(Patient.current_stage.in_(processable_stages))
     
-    stmt = stmt.order_by(Patient.created_at.desc())
+    root_sort = func.coalesce(Patient.root_patient_id, Patient.id)
+    stmt = stmt.order_by(Patient.is_priority.desc(), root_sort.asc(), Patient.ficha_number.asc(), Patient.created_at.desc())
     patients = db.scalars(stmt).all()
 
     if q:
@@ -118,6 +141,57 @@ def list_patients(
         ]
 
     return [patient_to_read(db, patient) for patient in patients]
+
+
+@router.get("/observations", response_model=list[ObservationRead])
+def list_observations(
+    q: str | None = Query(default=None, description="Buscar por paciente, RUT o ficha"),
+    stage: str | None = Query(default=None, description="Filtrar por etapa donde se registró"),
+    db: Session = Depends(get_db),
+    _: User = Depends(get_current_user),
+):
+    stmt = (
+        select(WorkflowLog)
+        .options(joinedload(WorkflowLog.patient), joinedload(WorkflowLog.user))
+        .where(
+            WorkflowLog.notes.is_not(None),
+            func.length(func.trim(WorkflowLog.notes)) > 0,
+        )
+        .order_by(WorkflowLog.fecha_hora.desc())
+    )
+    if stage:
+        stmt = stmt.where(WorkflowLog.processed_stage == stage)
+
+    logs = db.scalars(stmt).all()
+
+    if q:
+        normalized_query = _normalize_search_text(q)
+        rut_query = _normalize_query_rut(q)
+        logs = [
+            log for log in logs
+            if normalized_query in _normalize_search_text(log.patient.full_name)
+            or (rut_query and rut_query in _normalize_rut_text(log.patient.rut))
+            or normalized_query in f"f{log.patient.ficha_number or 1}"
+        ]
+
+    return [
+        ObservationRead(
+            id=log.id,
+            patient_id=log.patient_id,
+            patient_name=log.patient.full_name,
+            patient_rut=log.patient.rut,
+            ficha_number=log.patient.ficha_number or 1,
+            ficha_label=f"F{log.patient.ficha_number or 1}",
+            current_stage=log.patient.current_stage,
+            processed_stage=log.processed_stage,
+            user_id=log.user_id,
+            user=log.user,
+            purpose=log.purpose,
+            fecha_hora=log.fecha_hora,
+            notes=log.notes or "",
+        )
+        for log in logs
+    ]
 
 
 @router.get("/{patient_id}", response_model=PatientRead)
@@ -135,6 +209,70 @@ def create_patient(payload: PatientCreate, db: Session = Depends(get_db), curren
         raise HTTPException(status_code=409, detail="Ya existe un paciente con ese RUT")
     patient = Patient(**payload.model_dump(), created_by_user_id=current_user.id)
     db.add(patient)
+    db.flush()
+    patient.root_patient_id = patient.id
+    db.commit()
+    db.refresh(patient)
+    return patient_to_read(db, patient)
+
+
+@router.post("/{patient_id}/fichas", response_model=PatientRead, status_code=status.HTTP_201_CREATED)
+def create_patient_ficha(
+    patient_id: int,
+    payload: PatientFichaCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    source = db.get(Patient, patient_id)
+    if not source:
+        raise HTTPException(status_code=404, detail="Paciente no encontrado")
+    if source.current_stage not in {Stage.DOSIMETRIA, Stage.FISICA_MEDICA}:
+        raise HTTPException(status_code=400, detail="Solo se puede crear una nueva ficha en Dosimetría o Física Médica")
+    if payload.current_stage != source.current_stage:
+        raise HTTPException(status_code=400, detail="La nueva ficha debe crearse en la etapa actual del paciente")
+
+    root_id = source.root_patient_id or source.id
+    max_ficha = db.scalar(
+        select(func.max(Patient.ficha_number)).where(
+            or_(Patient.root_patient_id == root_id, Patient.id == root_id)
+        )
+    ) or source.ficha_number or 1
+
+    patient = Patient(
+        rut=source.rut,
+        full_name=source.full_name,
+        sex=source.sex,
+        age=source.age,
+        phone=source.phone,
+        trusted_contact_phone=source.trusted_contact_phone,
+        street=source.street,
+        commune=source.commune,
+        region=source.region,
+        current_stage=payload.current_stage,
+        root_patient_id=root_id,
+        ficha_number=max_ficha + 1,
+        is_priority=False,
+        created_by_user_id=current_user.id,
+    )
+    db.add(patient)
+    db.commit()
+    db.refresh(patient)
+    return patient_to_read(db, patient)
+
+
+@router.patch("/{patient_id}/priority", response_model=PatientRead)
+def update_patient_priority(
+    patient_id: int,
+    payload: PatientPriorityUpdate,
+    db: Session = Depends(get_db),
+    _: User = Depends(get_current_user),
+):
+    patient = db.get(Patient, patient_id)
+    if not patient:
+        raise HTTPException(status_code=404, detail="Paciente no encontrado")
+
+    patient.is_priority = payload.is_priority
+
     db.commit()
     db.refresh(patient)
     return patient_to_read(db, patient)
@@ -144,7 +282,7 @@ def create_patient(payload: PatientCreate, db: Session = Depends(get_db), curren
 async def upload_patients_txt(
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_admin),
 ):
     if not file.filename.lower().endswith(".txt"):
         raise HTTPException(status_code=400, detail="Solo se permiten archivos .txt")

@@ -1,14 +1,31 @@
-export type Role = 'Admin' | 'Físico Médico' | 'Tecnólogo Médico' | 'Enfermero/a';
+export type Role = string;
 
 export type Stage =
-  | 'Dosimetría'
-  | 'Física Médica'
-  | 'Impresión'
-  | 'Enfermería'
-  | 'Citación'
+  | 'Ingreso'
+  | 'Simulaci\u00f3n'
+  | 'Dosimetr\u00eda'
+  | 'F\u00edsica M\u00e9dica'
+  | 'Impresi\u00f3n'
+  | 'Enfermer\u00eda'
+  | 'Citaci\u00f3n'
+  | 'Inicio/Termino de tratamiento'
   | 'Finalizado';
 
-export type Purpose = 'Medición' | 'Planificación' | 'Replanificación' | 'Calcular Dosis';
+export type Purpose =
+  | 'Simulaci\u00f3n'
+  | 'Dosimetr\u00eda'
+  | 'Medici\u00f3n'
+  | 'F\u00edsica M\u00e9dica'
+  | 'Planificaci\u00f3n'
+  | 'Replanificaci\u00f3n'
+  | 'Calcular Dosis'
+  | 'Imprimir'
+  | 'Devolver a F\u00edsica M\u00e9dica'
+  | 'Citar'
+  | 'Recepci\u00f3n'
+  | 'Iniciar/terminar tratamiento'
+  | 'Fallecido / no disponible'
+  | 'Resimular';
 
 export interface User {
   id: number;
@@ -18,6 +35,14 @@ export interface User {
   is_active: boolean;
   created_at: string;
   processable_stages: Stage[];
+}
+
+export interface RoleDefinition {
+  id: number;
+  name: Role;
+  processable_stages: Stage[];
+  is_system: boolean;
+  created_at: string;
 }
 
 export interface Patient {
@@ -32,10 +57,16 @@ export interface Patient {
   commune?: string | null;
   region?: string | null;
   current_stage: Stage;
+  root_patient_id: number;
+  ficha_number: number;
+  ficha_label: string;
+  ficha_count: number;
+  is_priority: boolean;
   created_by_user_id?: number | null;
   created_at: string;
   latest_purpose?: Purpose | null;
   logs_count: number;
+  observation_count: number;
 }
 
 export interface WorkflowLog {
@@ -47,6 +78,22 @@ export interface WorkflowLog {
   purpose: Purpose;
   fecha_hora: string;
   notes?: string | null;
+}
+
+export interface Observation {
+  id: number;
+  patient_id: number;
+  patient_name: string;
+  patient_rut: string;
+  ficha_number: number;
+  ficha_label: string;
+  current_stage: Stage;
+  processed_stage: Stage;
+  user_id: number;
+  user?: User | null;
+  purpose: Purpose;
+  fecha_hora: string;
+  notes: string;
 }
 
 export interface StageSummaryItem {

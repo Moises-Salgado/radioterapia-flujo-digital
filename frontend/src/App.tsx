@@ -6,6 +6,7 @@ import { AdminPage } from './pages/AdminPage';
 import { CompletedPage } from './pages/CompletedPage';
 import { DashboardPage } from './pages/DashboardPage';
 import { LoginPage } from './pages/LoginPage';
+import { ObservationsPage } from './pages/ObservationsPage';
 import { PatientsPage } from './pages/PatientsPage';
 
 export function App() {
@@ -25,6 +26,7 @@ export function App() {
         <Route index element={<Navigate to="/dashboard" replace />} />
         <Route path="dashboard" element={<DashboardPage />} />
         <Route path="patients" element={<PatientsPage />} />
+        <Route path="observations" element={<ObservationsPage />} />
         <Route path="completed" element={<CompletedPage />} />
         <Route path="admin" element={user?.role === 'Admin' ? <AdminPage /> : <Navigate to="/dashboard" replace />} />
       </Route>
